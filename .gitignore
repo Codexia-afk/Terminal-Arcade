@@ -1,0 +1,9 @@
+# Compiled binary in root
+/arcade
+
+# Temporary files
+*.tmp
+*.corrupt-*
+
+# OS metadata
+.DS_Store
