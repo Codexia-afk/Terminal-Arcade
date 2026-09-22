@@ -3,92 +3,225 @@
 [![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-success)](README.md)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](README.md)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](README.md)
 
-A production-quality, fully offline, terminal-native arcade game suite written in modern Go. Launches into a game-selection menu and runs classic arcade games — **Snake (Nokia-style)**, **Pacman (Arcade Maze Chase)**, and **Ball & Plate (Breakout)** — entirely inside your terminal using direct raw-mode screen buffers, box-drawing chrome, multiple visual themes, concrete mechanical difficulty tiers, and atomic local persistence with deep statistics tracking.
+A production-quality, fully offline, terminal-native arcade game suite written in modern Go. Launches into an interactive selection menu and runs classic arcade games — **Snake (Nokia-style)**, **Pacman (Arcade Maze Chase)**, and **Ball & Plate (Breakout)** — entirely inside your terminal using direct raw-mode screen buffers, box-drawing chrome, multiple visual themes, concrete mechanical difficulty tiers, and atomic local persistence with deep statistics tracking.
 
 ---
 
 ## Table of Contents
 
-- [Features & Highlights](#features--highlights)
-- [Installation & Distribution](#installation--distribution)
-  - [1. Install via `go install`](#1-install-via-go-install-all-platforms)
-  - [2. Build from Source](#2-build-from-source-all-platforms)
-  - [3. Pre-Built Release Binaries & Cross-Compilation](#3-pre-built-release-binaries--cross-compilation)
-  - [4. Uninstallation & Data Reset](#4-uninstallation--data-reset)
-- [Keybinding Reference](#keybinding-reference)
-- [Difficulty Parameters](#difficulty-parameters)
-- [Visual Themes](#visual-themes)
-- [Deep Stats, Streaks & Achievement Badges](#deep-stats-streaks--achievement-badges)
-- [Export & Reset CLI Commands](#export--reset-cli-commands)
-- [Architecture & Design Notes](#architecture--design-notes)
-- [Running Headless Tests](#running-headless-tests)
+- [⚡ Quick Start at a Glance](#-quick-start-at-a-glance)
+- [🍎 macOS Guide](#-macos-guide)
+- [🐧 Linux Guide](#-linux-guide)
+- [🪟 Windows Guide](#-windows-guide)
+- [📦 Go Developers (Universal `go install`)](#-go-developers-universal-go-install)
+- [🎮 How to Play & Controls Reference](#-how-to-play--controls-reference)
+  - [Main Menu & Navigation](#main-menu--navigation)
+  - [Game Picker & Configuration](#game-picker--configuration)
+  - [🐍 Snake Gameplay & Controls](#-snake-gameplay--controls)
+  - [🟡 Pacman Gameplay & Controls](#-pacman-gameplay--controls)
+  - [🧱 Ball & Plate (Breakout) Gameplay & Controls](#-ball--plate-breakout-gameplay--controls)
+  - [📊 History, Badges & Activity Heatmap](#-history-badges--activity-heatmap)
+- [⚙️ CLI Flags & Tools](#️-cli-flags--tools)
+- [🎯 Difficulty Parameters](#-difficulty-parameters)
+- [🎨 Visual Themes](#-visual-themes)
+- [🏆 Deep Stats, Streaks & Achievement Badges](#-deep-stats-streaks--achievement-badges)
+- [🧪 Headless Tests & Cross-Compilation](#-headless-tests--cross-compilation)
+- [🏛️ Architecture & Design Notes](#️-architecture--design-notes)
+- [🧹 Uninstallation & Data Locations](#-uninstallation--data-locations)
 
 ---
 
-## Features & Highlights
+## ⚡ Quick Start at a Glance
 
-1. **Shared Game Engine Core**: One unified rendering buffer, fixed-ticker loop, non-blocking input queue, and pause management system built directly on `github.com/gdamore/tcell/v2`.
-2. **Three Fully-Featured Arcade Titles**:
-   - **Snake (Nokia-style)**: Grid movement on bordered arenas with edge-wrapping on Easy, deadly boundary walls on Medium, and deadly spawning obstacle pellets on Hard.
-   - **Pacman**: Authentic maze chase featuring dots, power pellets with frightened ghost states, and distinct ghost AI personalities (Random Wander, Manhattan Greedy Chase, and Directional Ambush).
-   - **Ball & Plate (Breakout)**: Sub-cell floating-point ball physics, continuous angle-deflection paddle dynamics, tough 2-hit bricks, and life tracking.
-3. **Three Mechanical Difficulty Modes (Easy, Medium, Hard)**: Concretely distinct gameplay tuning parameters (arena dimensions, tick intervals, ghost count and AI, paddle size, speeds, obstacles), not superficial cosmetic labels.
-4. **Three Built-in Visual Themes**:
-   - **Retro Green**: Nokia LCD / classic Game Boy green-on-black aesthetic.
-   - **Neon**: Vibrant cyberpunk arcade cabinet colors (cyan, magenta, yellow, orange).
-   - **Monochrome / High-Contrast**: Pure ASCII glyphs (`#`, `o`, `*`, `=`) designed for guaranteed compatibility on legacy consoles and accessibility without color reliance.
-5. **Persistent History & Deep Stats Tracking**:
-   - Every completed or quit session is atomically saved to local JSON (`os.UserConfigDir()/goarcade/history.json`).
-   - Per-game metrics: near-misses, food eaten, ghosts eaten, bricks broken, longest rally.
-   - Consecutive calendar-day play streaks (`current_streak`, `longest_streak`) displayed on the menu and history screens.
-   - 10+ badge achievement system stored in `achievements.json` with dedicated in-game achievement browser and unlock hints.
-   - Lightweight 30-day ASCII play activity heatmap (`·`, `▪`, `█`).
-   - Local JSON and CSV export commands.
-6. **100% Offline & Private**: Zero network dependencies, telemetry, update checkers, or remote calls.
-7. **Terminal Safety**: Guaranteed raw-mode restoration (`Fini()`) on clean exit, menu quit, Ctrl-C, or panic recovery.
+Choose your platform to install with a single command, then simply type **`arcade`** to play:
+
+| Platform | One-Line Installation Command | Launch Command |
+| :--- | :--- | :--- |
+| **macOS** | `curl -fsSL https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.sh \| bash` | `arcade` |
+| **Linux** | `curl -fsSL https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.sh \| bash` | `arcade` |
+| **Windows** | `irm https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.ps1 \| iex` | `arcade` |
+| **Any OS (Go)** | `go install github.com/Codexia-afk/Terminal-Arcade/cmd/arcade@latest` | `arcade` |
 
 ---
 
-## Installation & Distribution
+## 🍎 macOS Guide
 
-### ⚡ Quick Install (One-Line Automated Command)
+Supports both **Apple Silicon (M1, M2, M3, M4)** and **Intel-based Macs**.
 
-#### macOS & Linux (Terminal / iTerm / Alacritty / kitty)
-Install with a single command — auto-detects architecture (Apple Silicon `arm64`, Intel `amd64`, Linux), installs the binary, and sets up your PATH:
+### 1. One-Line Auto Install (Recommended)
+Open **Terminal**, **iTerm2**, **Alacritty**, or **kitty** and run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.sh | bash
 ```
 
-#### Windows (PowerShell)
-Open PowerShell and run:
+This script automatically:
+1. Detects whether your Mac is Apple Silicon (`arm64`) or Intel (`amd64`).
+2. Installs the executable binary into `/usr/local/bin` or `~/.local/bin`.
+3. Adds `~/.local/bin` to your `~/.zshrc` / `~/.bash_profile` if not already present.
+4. Verifies the installation with a test check.
+
+### 2. Launch & Play on macOS
+Open any terminal window and type:
+
+```bash
+arcade
+```
+
+*(If you just installed it, either run `source ~/.zshrc` or open a new Terminal tab).*
+
+### 3. Build from Source on macOS
+If you have Git and Go (1.22+) installed:
+
+```bash
+git clone https://github.com/Codexia-afk/Terminal-Arcade.git
+cd Terminal-Arcade
+make install   # Compiles and installs to /usr/local/bin/arcade
+arcade         # Launch game
+```
+
+To run locally without system installation:
+```bash
+go build -buildvcs=false -o arcade ./cmd/arcade
+./arcade
+```
+
+### 4. Running Pre-Compiled Release Binaries (Gatekeeper Note)
+If you download a binary directly from GitHub Releases or browser:
+```bash
+# For Apple Silicon (M1/M2/M3/M4):
+chmod +x arcade_darwin_arm64
+xattr -d com.apple.quarantine arcade_darwin_arm64
+./arcade_darwin_arm64
+
+# For Intel Mac:
+chmod +x arcade_darwin_amd64
+xattr -d com.apple.quarantine arcade_darwin_amd64
+./arcade_darwin_amd64
+```
+*(Removing the `com.apple.quarantine` attribute avoids the macOS "unidentified developer" pop-up).*
+
+### 5. macOS Terminal Settings & Tips
+- Recommended terminal: Default macOS **Terminal.app**, **iTerm2**, **Ghostty**, or **kitty**.
+- Encoding: Ensure terminal encoding is set to **UTF-8** (Terminal Preferences → Profiles → Advanced → Text encoding: Unicode UTF-8).
+- Minimum recommended terminal window size: **80 columns × 24 rows**.
+
+---
+
+## 🐧 Linux Guide
+
+Supports all major Linux distributions (**Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Alpine, CentOS/RHEL**).
+
+### 1. One-Line Auto Install (Recommended)
+Open your terminal and execute:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.sh | bash
+```
+
+This will:
+1. Detect your CPU architecture (`x86_64` / `amd64` or `aarch64` / `arm64`).
+2. Install the binary into `/usr/local/bin` (or `~/.local/bin` if running without sudo).
+3. Automatically configure your shell profile (`~/.bashrc`, `~/.zshrc`, or `~/.profile`).
+
+### 2. Launch & Play on Linux
+```bash
+arcade
+```
+
+### 3. Build from Source on Linux
+```bash
+# Clone the repository
+git clone https://github.com/Codexia-afk/Terminal-Arcade.git
+cd Terminal-Arcade
+
+# Compile and install to /usr/local/bin
+make install
+
+# Launch
+arcade
+```
+
+### 4. Running Pre-Built Binary Manually
+```bash
+# 64-bit x86 / AMD:
+chmod +x dist/arcade_linux_amd64
+./dist/arcade_linux_amd64
+
+# 64-bit ARM (Raspberry Pi 4/5, AWS Graviton):
+chmod +x dist/arcade_linux_arm64
+./dist/arcade_linux_arm64
+```
+
+### 5. Linux Terminal Compatibility
+- Works seamlessly across `GNOME Terminal`, `Konsole`, `Alacritty`, `kitty`, `st`, `xterm`, and Linux virtual consoles (`tty1`–`tty6`).
+- Under minimalist terminal environments or serial consoles with limited UTF-8 support, select the in-game **Monochrome / High-Contrast** theme which uses pure 7-bit ASCII characters.
+
+---
+
+## 🪟 Windows Guide
+
+Supports **Windows 10** and **Windows 11** on 64-bit systems.
+
+### 1. One-Line PowerShell Install (Recommended)
+Open **PowerShell** (no Administrator rights required) and paste:
 
 ```powershell
 irm https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.ps1 | iex
 ```
 
-Once installed, just type **`arcade`** in any terminal to play!
+This will:
+1. Download the latest `arcade_windows_amd64.exe`.
+2. Save it to `$HOME\.local\bin\arcade.exe`.
+3. Add `$HOME\.local\bin` to your User `PATH` environment variable permanently.
+
+### 2. Launch & Play on Windows
+Open a new **PowerShell** or **Windows Terminal** window and type:
+
+```powershell
+arcade
+```
+
+### 3. Build from Source on Windows
+If you have Git and Go installed:
+
+```cmd
+git clone https://github.com/Codexia-afk/Terminal-Arcade.git
+cd Terminal-Arcade
+go build -buildvcs=false -o arcade.exe .\cmd\arcade
+.\arcade.exe
+```
+
+### 4. Windows Terminal Recommendations
+- **Recommended**: Run inside **[Windows Terminal](https://aka.ms/terminal)** with PowerShell for optimal box-drawing character rendering and truecolor arcade themes.
+- **Legacy CMD (`cmd.exe`)**:
+  If using classic `cmd.exe`, enable UTF-8 character encoding before launching:
+  ```cmd
+  chcp 65001
+  arcade.exe
+  ```
+  *(Or choose the **Monochrome** theme in the game menu, which relies exclusively on standard ASCII characters like `#`, `=`, `o`, and `*`).*
 
 ---
 
-### 📦 Install via `go install` (Developers)
+## 📦 Go Developers (Universal `go install`)
 
-Requires Go 1.22 or higher:
+If you have Go 1.22+ installed on any operating system, install directly using the standard Go package manager:
 
 ```bash
 go install github.com/Codexia-afk/Terminal-Arcade/cmd/arcade@latest
 ```
 
-This places the `arcade` binary into `$(go env GOPATH)/bin` (or `%USERPROFILE%\go\bin` on Windows).
+This downloads, compiles, and installs `arcade` to your `$(go env GOPATH)/bin` directory.
 
-#### PATH Verification:
-- **macOS / Linux** (`zsh` / `bash`):
+Ensure `$(go env GOPATH)/bin` is in your `PATH`:
+- **macOS / Linux**:
   ```bash
   echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc && source ~/.zshrc
   ```
-- **Windows** (PowerShell):
+- **Windows (PowerShell)**:
   ```powershell
   $goBin = "$(go env GOPATH)\bin"
   if ($env:Path -notlike "*$goBin*") { [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$goBin", "User") }
@@ -96,351 +229,342 @@ This places the `arcade` binary into `$(go env GOPATH)/bin` (or `%USERPROFILE%\g
 
 ---
 
-### 🛠️ Build from Source & Make Install
+## 🎮 How to Play & Controls Reference
 
-Clone the repository and install system-wide:
+### Main Menu & Navigation
 
-#### macOS / Linux:
-```bash
-git clone https://github.com/Codexia-afk/Terminal-Arcade.git
-cd Terminal-Arcade
-make install   # Builds and installs to /usr/local/bin/arcade
-arcade         # Launch game
-```
-
-#### Windows (PowerShell / Command Prompt):
-```cmd
-git clone https://github.com/Codexia-afk/Terminal-Arcade.git
-cd Terminal-Arcade
-go build -buildvcs=false -o arcade.exe .\cmd\arcade
-arcade.exe
-```
-
----
-
-### 3. Pre-Built Release Binaries & Cross-Compilation
-
-To generate all cross-compiled release binaries from a single machine into `dist/`, run the cross-compilation script:
-
-#### Linux / macOS:
-```bash
-bash scripts/build_all.sh
-```
-
-#### Manual Cross-Compilation Commands:
-```bash
-# Linux (64-bit AMD & ARM)
-GOOS=linux   GOARCH=amd64 go build -buildvcs=false -o dist/arcade_linux_amd64       ./cmd/arcade
-GOOS=linux   GOARCH=arm64 go build -buildvcs=false -o dist/arcade_linux_arm64       ./cmd/arcade
-
-# macOS (Intel & Apple Silicon)
-GOOS=darwin  GOARCH=amd64 go build -buildvcs=false -o dist/arcade_darwin_amd64      ./cmd/arcade
-GOOS=darwin  GOARCH=arm64 go build -buildvcs=false -o dist/arcade_darwin_arm64      ./cmd/arcade
-
-# Windows (64-bit AMD)
-GOOS=windows GOARCH=amd64 go build -buildvcs=false -o dist/arcade_windows_amd64.exe  ./cmd/arcade
-```
-
-#### Running Downloaded Pre-Built Binaries:
-
-- **Linux**:
-  ```bash
-  chmod +x arcade_linux_amd64
-  ./arcade_linux_amd64
-  ```
-- **macOS (Gatekeeper Workaround)**:
-  Unsigned macOS binaries downloaded from browsers or GitHub releases trigger an "unidentified developer" warning. Remove the quarantine flag or right-click Open:
-  ```bash
-  chmod +x arcade_darwin_arm64
-  xattr -d com.apple.quarantine arcade_darwin_arm64
-  ./arcade_darwin_arm64
-  ```
-  *(Alternatively: Right-click the file in Finder → Open → Click "Open" on the prompt).*
-- **Windows**:
-  Run `arcade_windows_amd64.exe` inside Windows Terminal, PowerShell, or Command Prompt.
-
----
-
-### 4. Uninstallation & Data Reset
-
-#### Removing the Binary:
-- **macOS / Linux**:
-  ```bash
-  rm -f "$(go env GOPATH)/bin/arcade" ./arcade
-  ```
-- **Windows**:
-  ```powershell
-  del "$env:USERPROFILE\go\bin\arcade.exe"
-  del .\arcade.exe
-  ```
-
-#### Wiping Saved History & Achievements:
-History and badges are stored under `os.UserConfigDir()/goarcade/`:
-- **macOS**: `~/Library/Application Support/goarcade/`
-- **Linux**: `~/.config/goarcade/`
-- **Windows**: `%APPDATA%\goarcade\`
-
-To completely wipe all local data:
-- **macOS**:
-  ```bash
-  rm -rf "$HOME/Library/Application Support/goarcade"
-  ```
-- **Linux**:
-  ```bash
-  rm -rf "$HOME/.config/goarcade"
-  ```
-- **Windows**:
-  ```powershell
-  Remove-Item -Recurse -Force "$env:APPDATA\goarcade"
-  ```
-- **In-App / CLI**:
-  ```bash
-  arcade --reset-data
-  ```
-
----
-
-## Keybinding Reference
-
-Dual keyboard mappings (Arrow keys and WASD) are fully supported across all screens:
-
-### Main Menu & Configuration Pickers
+When you launch `arcade`, you are greeted by the arcade title screen and daily streak banner:
 
 | Key | Action |
-| --- | --- |
-| `↑` / `w` / `W` | Move selection up |
-| `↓` / `s` / `S` | Move selection down |
-| `Enter` / `Space` | Select / Confirm choice / Launch game |
-| `1` – `7` | Numeric quick selection (in Main Menu) |
-| `q` / `Q` / `Esc` | Return to previous menu / Exit arcade suite |
-
-### In-Game Controls (All Games)
-
-| Key | Snake | Pacman | Ball & Plate |
-| --- | --- | --- | --- |
-| `↑` / `w` / `W` | Steer Up | Steer Up | Launch Ball |
-| `↓` / `s` / `S` | Steer Down | Steer Down | - |
-| `←` / `a` / `A` | Steer Left | Steer Left | Move Paddle Left |
-| `→` / `d` / `D` | Steer Right | Steer Right | Move Paddle Right |
-| `Space` / `Enter` | Start game / Advance | Start game / Advance | Launch Ball / Start |
-| `p` / `P` | Pause / Resume | Pause / Resume | Pause / Resume |
-| `q` / `Q` / `Esc` | Quit to Main Menu | Quit to Main Menu | Quit to Main Menu |
-
-### History, Badges & Stats Browser
-
-| Key | Action |
-| --- | --- |
-| `←` / `→`, `a` / `d`, `Tab` | Cycle filter tab (`All`, `Snake`, `Pacman`, `Ball & Plate`, `Achievements`) |
-| `1` – `5` | Jump directly to tab index |
-| `↑` / `↓`, `w` / `s` | Scroll past session rows or badges |
-| `q` / `Q` / `Esc` / `Enter` | Return to Main Menu |
+| :--- | :--- |
+| `↑` / `↓` or `W` / `S` | Navigate menu items (*Play Game*, *History & Badges*, *Theme*, *Export Data*, *Reset Data*, *Quit*) |
+| `Enter` or `Space` | Select / confirm highlighted item |
+| `1` – `6` | Quick select item by number |
+| `Q` or `Esc` | Quit the arcade suite |
 
 ---
 
-## Difficulty Parameters
+### Game Picker & Configuration
 
-Each game features three concrete, mechanically distinct difficulty modes:
+Upon selecting **Play Game**, configure your session:
 
-### 1. Snake (Nokia-style)
+| Key | Action |
+| :--- | :--- |
+| `←` / `→` or `A` / `D` | Cycle game: **Snake 🐍** ↔ **Pacman 🟡** ↔ **Ball & Plate 🧱** |
+| `↑` / `↓` or `W` / `S` | Change difficulty: **Easy** ↔ **Medium** ↔ **Hard** |
+| `Enter` | Launch selected game |
+| `Esc` | Return to Main Menu |
 
+---
+
+### 🐍 Snake Gameplay & Controls
+
+Control the classic hungry serpent, eat pellets to grow, and build personal best lengths.
+
+```
+┌──────────────────────────────────────┐
+│  Score: 80   Length: 9   Best: 140   │
+│                                      │
+│               ████                   │
+│                  █      ◆            │
+│                  █████>              │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+| Key | Action |
+| :--- | :--- |
+| `↑` `↓` `←` `→` or `W` `A` `S` `D` | Steer Snake up, down, left, right |
+| `P` | Pause / Resume session |
+| `Esc` or `Q` | End game & atomically save score and metrics |
+
+#### Mechanics & Difficulty:
+- **Easy**: Slower pace; **wraps around arena borders** safely. Great for casual play.
+- **Medium**: Classic arcade speed; arena border walls are **fatal**.
+- **Hard**: Blazing speed, fatal walls, and **lethal obstacles** periodically materialize on the field.
+- **Telemetry**: Tracks near-misses (turns made 1 cell before fatal collision), food eaten, and survival ticks.
+
+---
+
+### 🟡 Pacman Gameplay & Controls
+
+Navigate the maze corridors, gobble pellets, and evade or hunt the ghosts.
+
+```
+┌──────────────────────────────────────┐
+│  Score: 320   Lives: ♥ ♥ ♥           │
+│  ╔════════════════════════════════╗  │
+│  ║ · · · · · · ║    ║ · · · · · · ║  │
+│  ║ · ╔══════╗ · ║    ║ · ╔══════╗ · ║  │
+│  ║ O ║      ║ · ╚════╝ · ║      ║ O ║  │
+│  ║ · ╚══════╝ · · M    · ╚══════╝ · ║  │
+│  ║ · · · · · · · · > · · · · · · · ║  │
+│  ╚════════════════════════════════╝  │
+└──────────────────────────────────────┘
+```
+
+| Key | Action |
+| :--- | :--- |
+| `↑` `↓` `←` `→` or `W` `A` `S` `D` | Buffer movement direction (Pacman glides continuously along paths) |
+| `P` | Pause / Resume session |
+| `Esc` or `Q` | End game & save session record |
+
+#### Mechanics & Ghost AI:
+- **Dots (`·`)**: 10 points each. Clear all dots to win the round.
+- **Power Pellets (`O`)**: 50 points. Turns ghosts vulnerable (`w`) for a limited duration.
+- **Ghost Personalities**:
+  - 🔴 **Blinky**: Direct greedy chaser (Manhattan path targeting).
+  - 🌸 **Pinky**: Ambush strategist (targets 4 steps ahead of Pacman).
+  - 🔷 **Inky**: Flanker and unpredictable pursuer.
+  - 🟠 **Clyde**: Casual wanderer.
+- **Telemetry**: Tracks dots eaten, power pellets used, ghosts eaten, and levels cleared.
+
+---
+
+### 🧱 Ball & Plate (Breakout) Gameplay & Controls
+
+Deflect the bouncing ball, demolish rows of bricks, and maintain long rallies.
+
+```
+┌──────────────────────────────────────┐
+│  Score: 240   Lives: ♥ ♥   Rally: 7  │
+│                                      │
+│   ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀      │
+│   ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀      │
+│   #### #### #### #### #### ####      │
+│                                      │
+│                  ●                   │
+│                                      │
+│              ━━━━━━━                 │
+└──────────────────────────────────────┘
+```
+
+| Key | Action |
+| :--- | :--- |
+| `←` / `→` or `A` / `D` | Move plate left / right |
+| `Space` or `↑` / `W` | Launch ball from plate at start of life |
+| `P` | Pause / Resume session |
+| `Esc` or `Q` | End game & save session record |
+
+#### Mechanics & Physics:
+- **Sub-Cell Continuous Physics**: Ball trajectory is computed with double-precision floating-point precision ($X, Y, V_x, V_y$).
+- **Dynamic Deflection Angle**: Hitting the edges of the paddle angles the ball sharply ($\pm 60^\circ$); hitting the center sends it upwards.
+- **Bricks**:
+  - Regular bricks (`▀` / `=`): 1 hit to break (10 points).
+  - Tough bricks (`#`): 2 hits to break (25 points).
+- **Telemetry**: Tracks bricks broken, max ball speed reached, plate bounces, and longest unbroken rally.
+
+---
+
+### 📊 History, Badges & Activity Heatmap
+
+Access **History & Badges** from the Main Menu to review your arcade career:
+
+| Key | Action |
+| :--- | :--- |
+| `←` / `→` or `A` / `D` | Switch tabs: **[1] History & Heatmap** ↔ **[2] Badges & Achievements** |
+| `1` / `2` | Jump directly to Tab 1 or Tab 2 |
+| `↑` / `↓` or `W` / `S` | Scroll session log rows or badges list |
+| `Esc` or `Q` | Return to Main Menu |
+
+- **Tab 1 (History & Heatmap)**: Displays consecutive play streaks, personal best scores per game, recent session table, and an ASCII **30-day activity density heatmap** (`·` = 0, `▪` = 1-2, `█` = 3+ sessions).
+- **Tab 2 (Badges & Achievements)**: Lists all 10 unlockable badges with live percentage progress bars (`[██████░░░░] 60%`) and unlock timestamps.
+
+---
+
+## ⚙️ CLI Flags & Tools
+
+The `arcade` binary includes built-in command line flags for data export and management without opening the GUI:
+
+```bash
+# Display full CLI help
+arcade -h
+
+# Export all gameplay history, stats, streaks, and badges to JSON
+arcade --export --format=json --output=arcade_stats.json
+
+# Export all session records to CSV (compatible with Excel, Sheets, Numbers)
+arcade --export --format=csv --output=arcade_sessions.csv
+
+# View exported files
+cat arcade_stats.json
+
+# Reset all persistent history, streak data, and unlocked achievements (with safety confirmation prompt)
+arcade --reset-data
+```
+
+---
+
+## 🎯 Difficulty Parameters
+
+Each game features mechanically distinct parameters:
+
+### Snake (Nokia-style)
 | Parameter | Easy | Medium | Hard |
-| --- | --- | --- | --- |
+| :--- | :--- | :--- | :--- |
 | **Tick Interval** | 180 ms | 130 ms | 90 ms |
 | **Arena Dimensions** | 40 × 20 cells | 34 × 18 cells | 28 × 16 cells |
-| **Wall Collisions** | **Wraps around edges** (safe) | **Lethal** (game over) | **Lethal** (game over) |
-| **Deadly Obstacles** | None | None | **Spawns lethal obstacle pellets** periodically |
+| **Wall Collisions** | **Wraps around edges** | **Fatal** | **Fatal** |
+| **Deadly Obstacles** | None | None | **Spawns lethal obstacles** |
 
-### 2. Pacman (Arcade Maze Chase)
-
+### Pacman (Arcade Maze Chase)
 | Parameter | Easy | Medium | Hard |
-| --- | --- | --- | --- |
-| **Ghost Count** | 2 ghosts (Blinky, Pinky) | 3 ghosts (Blinky, Pinky, Inky) | 4 ghosts (Blinky, Pinky, Inky, Clyde) |
-| **Ghost AI** | Random wander (casual) | Greedy Manhattan chase | Greedy chase + **Directional Ambush AI** (targets 4 tiles ahead) |
-| **Pellet Duration** | 50 ticks (~7.0 s) | 35 ticks (~4.4 s) | 20 ticks (~2.2 s) |
-| **Player Lives** | 3 lives | 3 lives | 2 lives |
+| :--- | :--- | :--- | :--- |
+| **Ghost Count** | 2 ghosts (Blinky, Pinky) | 3 ghosts (Blinky, Pinky, Inky) | 4 ghosts (All 4 ghosts) |
+| **Ghost AI** | Random wander | Greedy Manhattan chase | Greedy + **Directional Ambush** |
+| **Pellet Duration**| 50 ticks (~7.0s) | 35 ticks (~4.4s) | 20 ticks (~2.2s) |
+| **Lives** | 3 lives | 3 lives | 2 lives |
 | **Tick Interval** | 140 ms | 125 ms | 110 ms |
 
-### 3. Ball & Plate (Breakout)
-
+### Ball & Plate (Breakout)
 | Parameter | Easy | Medium | Hard |
-| --- | --- | --- | --- |
+| :--- | :--- | :--- | :--- |
 | **Paddle Width** | 7 cells (wide) | 5 cells (standard) | 3 cells (narrow) |
-| **Base Ball Speed** | 0.32 cells/tick | 0.40 cells/tick | 0.48 cells/tick |
-| **Speed Scaling** | Constant speed | +0.002 cells/tick per brick cleared | +0.004 cells/tick per brick cleared |
-| **Brick Grid** | Checkerboard gaps (fewer bricks) | Solid full grid | Solid grid + **Tough 2-hit brick row** |
-| **Player Lives** | 4 lives | 3 lives | 2 lives |
+| **Base Speed** | 0.32 cells/tick | 0.40 cells/tick | 0.48 cells/tick |
+| **Speed Scaling** | Constant | +0.002 cells/tick per brick | +0.004 cells/tick per brick |
+| **Brick Grid** | Checkerboard gaps | Solid full grid | Solid grid + **Tough 2-hit bricks** |
+| **Lives** | 4 lives | 3 lives | 2 lives |
 | **Tick Interval** | 40 ms | 38 ms | 35 ms |
 
 ---
 
-## Visual Themes
+## 🎨 Visual Themes
 
-All three titles support three visual themes, selectable prior to game launch:
+Customize your visual experience from the Main Menu (**Option 3: Visual Theme**):
 
-| Element | Retro Green | Neon | Monochrome / High-Contrast |
-| --- | --- | --- | --- |
-| **Aesthetic** | Nokia LCD Green-on-Black | Cyberpunk Arcade Cabinet | High-Contrast Pure ASCII Baseline |
-| **Background** | Black | Black | Black |
-| **Wall** | `█` (Dark Green) | `║` (Blue Violet) | `#` (White) |
-| **Snake Body / Head** | `█` (Green / Lime) | `█` (Aqua head, Fuchsia body) | `o` head, `#` body (White) |
-| **Snake Food** | `◆` (Lime) | `●` (Yellow) | `*` (White) |
-| **Pacman** | `█` (Green) | `>` `<` `^` `v` (Yellow) | `C` (White) |
-| **Ghosts** | `G` (Forest Green) | `M` (Red, Pink, Cyan, Orange) | `M` (White) |
-| **Frightened Ghost** | `w` (Olive Green) | `w` (Deep Sky Blue / White flash) | `w` (Gray) |
-| **Breakout Plate** | `▬` (Green) | `━` (Yellow) | `-` (White) |
-| **Breakout Ball** | `●` (Lime) | `●` (Aqua) | `o` (White) |
-| **Breakout Bricks** | `▀` (Green gradient) | `█` (Rainbow row gradient) | `=` (White, tough `#`) |
+| Theme | Aesthetic | Foreground / Accents | Terminal Compatibility |
+| :--- | :--- | :--- | :--- |
+| **Retro Green** | Nokia LCD / Classic Game Boy | Lime / Olive on Deep Black | All ANSI terminals |
+| **Neon** | Cyberpunk Arcade Cabinet | Cyan, Magenta, Yellow, Orange | Modern 256-color & Truecolor terminals |
+| **Monochrome** | High-Contrast Pure ASCII | High-contrast White on Black | Guaranteed on legacy & serial consoles |
 
-> [!NOTE]
-> **Monochrome / High-Contrast Theme**: Uses exclusively plain 7-bit ASCII characters (`#`, `o`, `*`, `=`, `-`). It is guaranteed to display cleanly on legacy terminals (e.g., Windows `cmd.exe` or minimal serial consoles) without requiring Unicode box-drawing support.
+> [!TIP]
+> Under Windows Command Prompt (`cmd.exe`) or minimal SSH sessions, the **Monochrome** theme uses only 7-bit ASCII characters (`#`, `=`, `o`, `*`) for maximum clarity and zero character glitches.
 
 ---
 
-## Deep Stats, Streaks & Achievement Badges
+## 🏆 Deep Stats, Streaks & Achievement Badges
 
-Go Arcade records rich telemetry for every game played:
+### 10 Unlockable Achievements
 
-### 1. Per-Game Detailed Metrics
-- **Snake**: `food_eaten`, `max_length_reached`, `ticks_survived`, `near_misses` (counts turns made 1 cell before fatal collisions).
-- **Pacman**: `dots_eaten`, `power_pellets_used`, `ghosts_eaten`, `levels_cleared`, `lives_lost`.
-- **Ball & Plate**: `bricks_broken`, `max_ball_speed_reached`, `plate_hits`, `lives_lost`, `longest_rally` (consecutive plate bounces without losing a ball).
-
-### 2. Calendar-Day Play Streaks
-Tracks consecutive calendar days with at least one game played. Evaluated using local timezone day boundaries.
-- Displayed prominently in the Main Menu banner: `🔥 3-Day Streak! (Personal Best: 7 days)`.
-- Fallback under Monochrome: `[Streak: 3 days | Best: 7 days]`.
-
-### 3. Achievement Badges System
-A set of 10 badges evaluated automatically upon game completion:
-
-| Badge | Title | Requirement | Hint |
-| --- | --- | --- | --- |
-| `first_blood` | **First Blood** | Complete your first session of any game | Play and finish or exit a session in any game. |
-| `century_club` | **Century Club** | Score 100+ in any single Snake session | Eat at least 10 food pellets in one Snake game. |
-| `ghost_hunter` | **Ghost Hunter** | Eat 20 ghosts total across all Pacman sessions | Consume frightened ghosts during power pellet periods. |
-| `brick_breaker` | **Brick Breaker** | Clear a full Ball & Plate level on Hard | Destroy every brick including tough bricks on Hard. |
-| `marathon` | **Marathon** | Single session lasting 5+ minutes | Keep any session actively playing for at least 300s. |
-| `dedicated` | **Dedicated** | Achieve a 7-day play streak | Play at least one round each day for 7 consecutive days. |
-| `completionist`| **Completionist** | Play all three games at least once | Play at least one round of Snake, Pacman, and Ball & Plate. |
-| `perfectionist`| **Perfectionist** | Clear a Pacman level without losing a life | Eat all dots and win a Pacman game with 0 deaths. |
-| `speed_demon`  | **Speed Demon** | Survive 60+ seconds on Snake Hard | Dodge walls and obstacles at top speed for over 60s. |
-| `night_owl`    | **Night Owl** | Play a session between midnight and 4:00 AM | Launch and play a round late at night (00:00 - 04:00). |
-
-Badges are browsable in the **Achievements** tab (`[5]`) on the History screen with unlocked dates and unlock hints for locked badges.
-
-### 4. 30-Day Activity Heatmap
-Rendered on the History screen, visually displaying session density over the last 30 calendar days:
-```
-── 30-DAY HEATMAP ──
-· · ▪ · · █ · · ▪ ▪ · · · · · ▪ █ █ ·
-· none  ▪ 1-2  █ 3+
-```
+| ID | Title | Requirement | Unlock Hint |
+| :--- | :--- | :--- | :--- |
+| `first_blood` | **First Blood** | Complete 1 session of any game | Finish or exit your very first arcade round. |
+| `century_club` | **Century Club** | Score 100+ in Snake | Eat at least 10 pellets in a single Snake game. |
+| `ghost_hunter` | **Ghost Hunter** | Eat 20 ghosts across Pacman games | Hunt frightened ghosts during power pellet periods. |
+| `brick_breaker` | **Brick Breaker** | Clear a full Breakout level on Hard | Demolish every brick including tough bricks on Hard. |
+| `marathon` | **Marathon** | Single session lasting 5+ minutes | Keep playing continuously in any single round for 300s. |
+| `dedicated` | **Dedicated** | Maintain a 7-day play streak | Play at least one game every day for 7 consecutive days. |
+| `completionist`| **Completionist** | Play all 3 games at least once | Play Snake, Pacman, and Ball & Plate. |
+| `perfectionist`| **Perfectionist** | Clear Pacman without losing a life | Eat every dot and clear the maze with 0 deaths. |
+| `speed_demon`  | **Speed Demon** | Survive 60+ seconds on Snake Hard | Navigate fatal walls and obstacles on Hard for >60s. |
+| `night_owl`    | **Night Owl** | Play between midnight and 4:00 AM | Play an arcade round between 00:00 and 04:00. |
 
 ---
 
-## Export & Reset CLI Commands
+## 🧪 Headless Tests & Cross-Compilation
 
-### Export History & Achievements
-Export your offline data to a human-readable file:
+### Running Automated Tests
+All game rules, collisions, ghost AI, physics, and persistence engines are verified with headless unit tests:
 
 ```bash
-# Export all sessions and badges to JSON:
-./arcade --export --format=json --output=my_arcade_backup.json
+# Run all unit tests headlessly
+go test -v -count=1 ./...
 
-# Export sessions to CSV:
-./arcade --export --format=csv --output=my_arcade_sessions.csv
-```
-
-You can also trigger an export directly inside the game from the Main Menu (**Option 5: Export Data**).
-
-### Reset Data
-Wipe all history and achievement records with interactive confirmation:
-
-```bash
-./arcade --reset-data
-# Prompts: Warning: This will permanently delete all session history and achievements.
-# Are you sure? [y/N]:
-```
-
----
-
-## Architecture & Design Notes
-
-```
-cmd/arcade/main.go          Application entry point, CLI flag dispatcher, raw mode teardown, signals
-internal/
-├── engine/                 Shared engine core (zero game rules)
-│   ├── difficulty.go       Difficulty enum (Easy/Medium/Hard) and profile interface
-│   ├── entity.go           Position, Sprite, Rect (AABB collision primitives)
-│   ├── game.go             Universal Game & MetricsProvider interface contracts
-│   ├── input.go            Abstract Action translations (Arrows + WASD)
-│   ├── loop.go             Fixed-ticker loop, input buffering, drop-and-continue pacing
-│   ├── screen.go           tcell Screen wrapper with box-drawing & text centering
-│   ├── theme.go            Theme struct & ThemeRegistry (Retro Green, Neon, Monochrome)
-│   └── engine_test.go      Engine unit tests
-├── history/                Decoupled persistence layer (zero tcell/rendering imports)
-│   ├── achievements.go     10+ badge definitions, evaluator, atomic achievements.json store
-│   ├── export.go           JSON and CSV data serialisation
-│   ├── heatmap.go          30-day activity density calculation & ASCII rendering
-│   ├── record.go           Record struct, personal best queries, relative time formatting
-│   ├── reset.go            Safe deletion of history and badges files
-│   ├── store.go            Atomic JSON persistence & self-healing corruption recovery
-│   ├── streaks.go          Consecutive day streak calculator with clock injection
-│   └── history_test.go     Comprehensive headless persistence & aggregation tests
-├── menu/                   Menu and statistics screens (built on engine.Screen)
-│   ├── history.go          Session log table, achievements tab, heatmap & streaks panel
-│   ├── mainmenu.go         Title screen, streak banner, game selector
-│   └── picker.go           Difficulty & Theme picker with personal best indicators
-└── games/
-    ├── snake/              Nokia Snake with near-miss tracking & tests
-    ├── pacman/             Maze chase with dots, pellets, ghost AI & tests
-    └── ballplate/          Breakout with angular deflection physics, rallies & tests
-```
-
-### Key Engineering Decisions:
-
-1. **Engine / Game Decoupling**:
-   - `internal/engine` owns zero game rules.
-   - Every game implements the identical `engine.Game` contract:
-     ```go
-     type Game interface {
-         Init(cfg GameConfig)
-         Tick() TickResult
-         HandleInput(a Action)
-         Render(s *Screen)
-         IsOver() bool
-         Score() int
-         Name() string
-     }
-     ```
-   - Telemetry is supplied via the optional `engine.MetricsProvider` (`Metrics() map[string]int`), preserving contract cleanliness while enabling deep per-game stats.
-2. **Atomic Writes & Corruption Recovery**:
-   - History and achievement writes serialize data and write to `<file>.tmp` with file permissions `0600`.
-   - Files are then atomically replaced via `os.Rename`. A power failure or crash mid-write cannot corrupt existing history.
-   - If `history.json` or `achievements.json` is corrupted externally, the loader backs up the file to `<file>.corrupt-<timestamp>` and initializes a clean store rather than crashing the application.
-3. **Cross-Platform Compatibility**:
-   - **Path Separators**: All disk paths use `filepath.Join` and resolve against standard `os.UserConfigDir()`.
-   - **Signals**: Windows does not support POSIX `SIGTERM`. The suite listens exclusively to `os.Interrupt` (portable across Windows, Linux, and macOS) to ensure `screen.Raw.Fini()` is invoked prior to termination.
-   - **CGO Avoidance**: Zero CGO dependencies. Standard Go cross-compilation (`GOOS=... GOARCH=... go build`) works cleanly from any host OS.
-4. **Smooth Frame Pacing & Terminal Timing**:
-   - Simulation steps run on a strict `time.Ticker` rather than naive `time.Sleep` loops.
-   - **Input Buffering**: Directional inputs are drained per tick and collapsed to at most the latest player intent, preventing multi-turn stalls.
-   - **Drop-and-Continue Strategy**: If rendering takes longer than the tick interval (e.g. on very slow or loaded terminal emulators), lagged ticks are drained and skipped rather than fast-forwarding jerkily.
-   - **No Redraw Flicker**: Incremental frames use `tcell.Screen.Show()`. Full repaint (`Sync()`) is reserved strictly for terminal resize events.
-5. **Sub-Cell Motion in Ball & Plate**:
-   - Ball coordinates ($X, Y$) and velocities ($V_x, V_y$) are double-precision floats (`float64`).
-   - Impact angle reflection off the paddle uses relative deflection:
-     $$\text{offset} = \frac{X_{\text{hit}} - X_{\text{center}}}{W_{\text{paddle}} / 2} \in [-1.0, 1.0]$$
-     $$V_x = \text{speed} \cdot \sin(\text{offset} \cdot 60^\circ)$$
-     $$V_y = -\left|\text{speed} \cdot \cos(\text{offset} \cdot 60^\circ)\right|$$
-
----
-
-## Running Headless Tests
-
-All game simulation logic, ghost AI decisions, physics math, and persistence systems are 100% testable without a terminal emulator or GUI:
-
-```bash
-go test -v ./...
+# Run static analysis
 go vet ./...
 ```
+
+### Cross-Compiling for All Platforms
+Build pre-compiled release binaries for macOS, Linux, and Windows from any machine:
+
+```bash
+make release
+# or
+./scripts/build_all.sh
+
+# Inspect built artifacts
+ls -lh dist/
+# ./dist/arcade_darwin_arm64      (macOS Apple Silicon)
+# ./dist/arcade_darwin_amd64      (macOS Intel)
+# ./dist/arcade_linux_amd64       (Linux x86_64)
+# ./dist/arcade_linux_arm64       (Linux ARM64)
+# ./dist/arcade_windows_amd64.exe (Windows 64-bit)
+```
+
+---
+
+## 🏛️ Architecture & Design Notes
+
+```
+cmd/arcade/main.go          Application entry point, CLI flags, signal handling, panic recovery
+install.sh                  Universal one-line installer for macOS & Linux
+install.ps1                 Universal one-line installer for Windows PowerShell
+internal/
+├── engine/                 Shared game engine (zero game-specific rules)
+│   ├── difficulty.go       Difficulty tier types and contracts
+│   ├── entity.go           Position, Sprite, Rect (AABB collision primitives)
+│   ├── game.go             Universal Game & MetricsProvider interfaces
+│   ├── input.go            Action mappings (Arrow keys + WASD)
+│   ├── loop.go             Fixed-ticker loop, drop-and-continue pacing, input buffering
+│   ├── screen.go           tcell Screen abstraction, border drawing, centered text
+│   └── theme.go            Theme palettes (Retro Green, Neon, Monochrome)
+├── history/                Offline persistence layer (independent of engine/tcell)
+│   ├── achievements.go     10 badge definitions, evaluator, atomic JSON persistence
+│   ├── export.go           JSON and CSV export serializers
+│   ├── heatmap.go          30-day activity density calculation & ASCII renderer
+│   ├── record.go           Session records, personal best aggregation, relative time formatting
+│   ├── reset.go            Safe history wiping utilities
+│   ├── store.go            Atomic file writes (.tmp + rename) & corruption recovery
+│   └── streaks.go          Consecutive day streak engine with clock injection
+├── menu/                   Terminal-native menu presentation
+│   ├── history.go          Session history browser, badges progress tab, heatmap panel
+│   ├── mainmenu.go         Interactive title menu and streak banner
+│   └── picker.go           Game, difficulty, and theme selector with personal best display
+└── games/
+    ├── snake/              Nokia-style Snake with near-miss calculations
+    ├── pacman/             Pacman maze chase with 4 ghost AI personalities
+    └── ballplate/          Ball & Plate (Breakout) with sub-cell deflection physics
+```
+
+---
+
+## 🧹 Uninstallation & Data Locations
+
+### Storage Directories
+Your data is stored locally in standard OS configuration directories:
+- **macOS**: `~/Library/Application Support/goarcade/`
+- **Linux**: `~/.config/goarcade/`
+- **Windows**: `%APPDATA%\goarcade\`
+
+### Remove Data Only
+```bash
+# Using CLI
+arcade --reset-data
+
+# Or manually:
+# macOS:
+rm -rf "$HOME/Library/Application Support/goarcade"
+# Linux:
+rm -rf "$HOME/.config/goarcade"
+# Windows (PowerShell):
+Remove-Item -Recurse -Force "$env:APPDATA\goarcade"
+```
+
+### Complete Uninstallation (Remove Binary)
+```bash
+# macOS / Linux (if installed via install.sh or make install):
+sudo rm -f /usr/local/bin/arcade ~/.local/bin/arcade
+
+# If installed via go install:
+rm -f "$(go env GOPATH)/bin/arcade"
+
+# Windows (PowerShell):
+Remove-Item -Force "$HOME\.local\bin\arcade.exe"
+```
+
+---
+
+## 📜 License
+
+MIT License. Crafted with ❤️ for terminal gamers and Go developers.
