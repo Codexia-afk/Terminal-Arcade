@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	"goarcade/internal/engine"
-	"goarcade/internal/history"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/history"
 )
 
 // ConfigPicker prompts the player to select Difficulty and Theme before game launch.

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
-	"goarcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
 )
 
 func newTestPacman(diff engine.Difficulty) *Game {

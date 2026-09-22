@@ -37,3 +37,18 @@ cross-compile: clean
 clean:
 	@echo "Cleaning artifacts..."
 	@rm -rf $(BINARY_NAME) $(BINARY_NAME).exe $(DIST_DIR) arcade_export.json arcade_export.csv
+
+PREFIX ?= /usr/local
+INSTALL_BIN ?= $(PREFIX)/bin
+
+install: build
+	@echo "Installing $(BINARY_NAME) to $(INSTALL_BIN)..."
+	@mkdir -p $(INSTALL_BIN)
+	@cp $(BINARY_NAME) $(INSTALL_BIN)/$(BINARY_NAME)
+	@chmod 755 $(INSTALL_BIN)/$(BINARY_NAME)
+	@echo "Installation complete! Run 'arcade' to play."
+
+uninstall:
+	@echo "Removing $(BINARY_NAME) from $(INSTALL_BIN)..."
+	@rm -f $(INSTALL_BIN)/$(BINARY_NAME)
+	@echo "Uninstalled."

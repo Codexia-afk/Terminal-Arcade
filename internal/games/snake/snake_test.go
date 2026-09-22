@@ -3,7 +3,7 @@ package snake
 import (
 	"testing"
 
-	"goarcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
 )
 
 func newTestSnake(diff engine.Difficulty) *Game {

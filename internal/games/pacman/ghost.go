@@ -5,7 +5,7 @@ import (
 	"math/rand"
 
 	"github.com/gdamore/tcell/v2"
-	"goarcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
 )
 
 // Ghost represents an enemy ghost in the maze.

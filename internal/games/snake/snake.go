@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	"goarcade/internal/engine"
-	"goarcade/internal/history"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/history"
 )
 
 type gameState int

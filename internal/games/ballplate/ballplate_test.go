@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"goarcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
 )
 
 func newTestBallPlate(diff engine.Difficulty) *Game {

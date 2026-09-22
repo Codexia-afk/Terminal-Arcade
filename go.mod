@@ -1,4 +1,4 @@
-module goarcade
+module github.com/Codexia-afk/Terminal-Arcade
 
 go 1.22
 

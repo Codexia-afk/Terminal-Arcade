@@ -53,48 +53,65 @@ A production-quality, fully offline, terminal-native arcade game suite written i
 
 ## Installation & Distribution
 
-### 1. Install via `go install` (All Platforms)
+### ⚡ Quick Install (One-Line Automated Command)
 
-Requires Go 1.22 or higher installed on your system.
+#### macOS & Linux (Terminal / iTerm / Alacritty / kitty)
+Install with a single command — auto-detects architecture (Apple Silicon `arm64`, Intel `amd64`, Linux), installs the binary, and sets up your PATH:
 
 ```bash
-go install github.com/srinjoypramanick/Golang_games/cmd/arcade@latest
+curl -fsSL https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.sh | bash
 ```
 
-This places the `arcade` binary in `$(go env GOPATH)/bin` (or `%USERPROFILE%\go\bin` on Windows).
+#### Windows (PowerShell)
+Open PowerShell and run:
 
-#### PATH Verification & Fix:
+```powershell
+irm https://raw.githubusercontent.com/Codexia-afk/Terminal-Arcade/main/install.ps1 | iex
+```
 
-- **macOS / Linux** (`bash` / `zsh`):
+Once installed, just type **`arcade`** in any terminal to play!
+
+---
+
+### 📦 Install via `go install` (Developers)
+
+Requires Go 1.22 or higher:
+
+```bash
+go install github.com/Codexia-afk/Terminal-Arcade/cmd/arcade@latest
+```
+
+This places the `arcade` binary into `$(go env GOPATH)/bin` (or `%USERPROFILE%\go\bin` on Windows).
+
+#### PATH Verification:
+- **macOS / Linux** (`zsh` / `bash`):
   ```bash
-  # Check if GOPATH/bin is on PATH:
-  echo $PATH | grep -q "$(go env GOPATH)/bin" && echo "GOPATH/bin is in PATH" || echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc && source ~/.zshrc
+  echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc && source ~/.zshrc
   ```
 - **Windows** (PowerShell):
   ```powershell
-  # Check and add Go bin to User PATH:
   $goBin = "$(go env GOPATH)\bin"
   if ($env:Path -notlike "*$goBin*") { [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$goBin", "User") }
   ```
 
 ---
 
-### 2. Build from Source (All Platforms)
+### 🛠️ Build from Source & Make Install
 
-Clone the repository and build the binary:
+Clone the repository and install system-wide:
 
-#### Linux & macOS:
+#### macOS / Linux:
 ```bash
-git clone https://github.com/srinjoypramanick/Golang_games.git
-cd Golang_games
-go build -buildvcs=false -o arcade ./cmd/arcade
-./arcade
+git clone https://github.com/Codexia-afk/Terminal-Arcade.git
+cd Terminal-Arcade
+make install   # Builds and installs to /usr/local/bin/arcade
+arcade         # Launch game
 ```
 
-#### Windows (Command Prompt / PowerShell):
+#### Windows (PowerShell / Command Prompt):
 ```cmd
-git clone https://github.com/srinjoypramanick/Golang_games.git
-cd Golang_games
+git clone https://github.com/Codexia-afk/Terminal-Arcade.git
+cd Terminal-Arcade
 go build -buildvcs=false -o arcade.exe .\cmd\arcade
 arcade.exe
 ```

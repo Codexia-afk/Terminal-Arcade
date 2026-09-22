@@ -2,7 +2,7 @@
 package pacman
 
 import (
-	"goarcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
 )
 
 // TileType identifies the content of a maze cell.

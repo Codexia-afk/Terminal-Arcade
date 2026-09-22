@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	"goarcade/internal/engine"
-	"goarcade/internal/games/ballplate"
-	"goarcade/internal/games/pacman"
-	"goarcade/internal/games/snake"
-	"goarcade/internal/history"
-	"goarcade/internal/menu"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/games/ballplate"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/games/pacman"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/games/snake"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/history"
+	"github.com/Codexia-afk/Terminal-Arcade/internal/menu"
 )
 
 func main() {
