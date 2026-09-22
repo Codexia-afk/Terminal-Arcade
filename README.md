@@ -1,7 +1,10 @@
 # Go Arcade — Terminal Game Suite (Snake, Pacman, Ball & Plate)
 
+[![Latest Release](https://img.shields.io/github/v/release/Codexia-afk/Terminal-Arcade?logo=github&color=00ADD8)](https://github.com/Codexia-afk/Terminal-Arcade/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Codexia-afk/Terminal-Arcade.svg)](https://pkg.go.dev/github.com/Codexia-afk/Terminal-Arcade)
 [![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/Codexia-afk/Terminal-Arcade/total?color=green&logo=github)](https://github.com/Codexia-afk/Terminal-Arcade/releases)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-success)](README.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](README.md)
 
