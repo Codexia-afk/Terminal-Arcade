@@ -5,6 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/Codexia-afk/Terminal-Arcade/total?color=green&logo=github)](https://github.com/Codexia-afk/Terminal-Arcade/releases)
+[![Sponsor on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/srinjoypramanick)
 [![Offline](https://img.shields.io/badge/network-100%25%20offline-success)](README.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](README.md)
 
@@ -33,6 +34,8 @@ A production-quality, fully offline, terminal-native arcade game suite written i
 - [🧪 Headless Tests & Cross-Compilation](#-headless-tests--cross-compilation)
 - [🏛️ Architecture & Design Notes](#️-architecture--design-notes)
 - [🧹 Uninstallation & Data Locations](#-uninstallation--data-locations)
+- [💖 Support & Sponsoring](#-support--sponsoring)
+- [📜 License](#-license)
 
 ---
 
@@ -565,6 +568,15 @@ rm -f "$(go env GOPATH)/bin/arcade"
 # Windows (PowerShell):
 Remove-Item -Force "$HOME\.local\bin\arcade.exe"
 ```
+
+---
+
+## 💖 Support & Sponsoring
+
+If you enjoy playing Terminal Arcade and want to support continued development, new games, and maintenance:
+
+- **☕ Buy a coffee on Ko-fi**: [ko-fi.com/srinjoypramanick](https://ko-fi.com/srinjoypramanick)
+- **💖 Sponsor on GitHub**: [github.com/sponsors/Codexia-afk](https://github.com/sponsors/Codexia-afk)
 
 ---
 
