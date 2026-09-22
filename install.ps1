@@ -45,19 +45,43 @@ if (Get-Command go -ErrorAction SilentlyContinue) {
     }
 }
 
-# 4. Download pre-compiled binary
+# 4. Download pre-compiled binary or release archive
 if (-not $Installed) {
-    Write-Host "==> Downloading $DownloadFile..." -ForegroundColor Cyan
+    # Strategy A: GitHub Releases latest archive
     try {
-        Invoke-WebRequest -Uri $ReleaseUrl -OutFile $Destination -UseBasicParsing
-        $Installed = $true
+        $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
+        $LatestTag = $Release.tag_name
+        $VersionNum = $LatestTag.TrimStart('v')
+        $ArchiveName = "arcade_${VersionNum}_windows_${Arch}.zip"
+        $ArchiveUrl = "https://github.com/$Repo/releases/download/$LatestTag/$ArchiveName"
+        $ZipPath = Join-Path $InstallDir $ArchiveName
+
+        Write-Host "==> Downloading release asset $ArchiveName ($LatestTag)..." -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $ArchiveUrl -OutFile $ZipPath -UseBasicParsing
+        Expand-Archive -Path $ZipPath -DestinationPath $InstallDir -Force
+        Remove-Item -Force $ZipPath -ErrorAction SilentlyContinue
+        if (Test-Path $Destination) {
+            $Installed = $true
+            Write-Host "✔ Extracted and installed $ArchiveName." -ForegroundColor Green
+        }
     } catch {
+        # Fallback to direct binary download
+    }
+
+    # Strategy B: Fallback to standalone direct binary asset
+    if (-not $Installed) {
+        Write-Host "==> Downloading $DownloadFile..." -ForegroundColor Cyan
         try {
-            Invoke-WebRequest -Uri $RawFallbackUrl -OutFile $Destination -UseBasicParsing
+            Invoke-WebRequest -Uri $ReleaseUrl -OutFile $Destination -UseBasicParsing
             $Installed = $true
         } catch {
-            Write-Error "Failed to download binary from GitHub. Please download manually from: https://github.com/$Repo/releases"
-            exit 1
+            try {
+                Invoke-WebRequest -Uri $RawFallbackUrl -OutFile $Destination -UseBasicParsing
+                $Installed = $true
+            } catch {
+                Write-Error "Failed to download binary from GitHub. Please download manually from: https://github.com/$Repo/releases"
+                exit 1
+            }
         }
     }
 }

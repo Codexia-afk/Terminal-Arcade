@@ -20,27 +20,37 @@ import (
 	"github.com/Codexia-afk/Terminal-Arcade/internal/menu"
 )
 
+// version is injected at build time via -ldflags "-X main.version=..."
+var version = "v1.0.0"
+
 func main() {
 	// 1. CLI Flags definition
+	versionFlag := flag.Bool("version", false, "Print version information and exit")
 	exportFlag := flag.Bool("export", false, "Export all session records and achievements to a local file")
 	formatFlag := flag.String("format", "json", "Export format: json or csv")
 	outputFlag := flag.String("output", "", "Output filename for export (defaults to arcade_export.<format>)")
 	resetFlag := flag.Bool("reset-data", false, "Reset all persistent session history and achievements")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Go Arcade — Production-Quality Terminal Arcade Suite\n\n")
+		fmt.Fprintf(os.Stderr, "Go Arcade — Production-Quality Terminal Arcade Suite (%s)\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "  arcade [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  arcade                           # Launch interactive game suite\n")
+		fmt.Fprintf(os.Stderr, "  arcade --version                 # Print version\n")
 		fmt.Fprintf(os.Stderr, "  arcade --export --format=json    # Export data to arcade_export.json\n")
 		fmt.Fprintf(os.Stderr, "  arcade --export --format=csv     # Export sessions to arcade_export.csv\n")
 		fmt.Fprintf(os.Stderr, "  arcade --reset-data              # Reset all saved history and badges\n")
 	}
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("arcade version %s\n", version)
+		os.Exit(0)
+	}
 
 	// 2. Handle CLI Reset
 	if *resetFlag {

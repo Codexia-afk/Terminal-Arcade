@@ -139,22 +139,49 @@ if [ ! -f "$TARGET_BINARY" ] && command -v go >/dev/null 2>&1; then
 fi
 
 if [ ! -f "$TARGET_BINARY" ]; then
-    RELEASE_URL="https://github.com/${REPO}/releases/latest/download/${DOWNLOAD_FILE}"
-    RAW_FALLBACK_URL="https://raw.githubusercontent.com/${REPO}/main/dist/${DOWNLOAD_FILE}"
+    # Strategy A: GitHub Releases API for GoReleaser archive
+    RELEASE_JSON="$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+    LATEST_TAG="$(echo "$RELEASE_JSON" | grep '"tag_name":' | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')"
 
-    info "Downloading pre-compiled binary: ${DOWNLOAD_FILE}..."
+    if [ -n "$LATEST_TAG" ]; then
+        VERSION_NUM="${LATEST_TAG#v}"
+        ARCHIVE_NAME="arcade_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+        if [ "$OS" = "windows" ]; then
+            ARCHIVE_NAME="arcade_${VERSION_NUM}_${OS}_${ARCH}.zip"
+        fi
+        ARCHIVE_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${ARCHIVE_NAME}"
 
-    DOWNLOAD_SUCCESS=0
-    if curl -fsSL --connect-timeout 10 -o "$TARGET_BINARY" "$RELEASE_URL" 2>/dev/null; then
-        DOWNLOAD_SUCCESS=1
-        INSTALLED_VIA="github releases"
-    elif curl -fsSL --connect-timeout 10 -o "$TARGET_BINARY" "$RAW_FALLBACK_URL" 2>/dev/null; then
-        DOWNLOAD_SUCCESS=1
-        INSTALLED_VIA="github source tree"
+        info "Downloading release asset ${ARCHIVE_NAME} (${LATEST_TAG})..."
+        if curl -fsSL --connect-timeout 15 -o "${TMP_DIR}/${ARCHIVE_NAME}" "$ARCHIVE_URL" 2>/dev/null; then
+            if [ "$OS" = "windows" ]; then
+                unzip -q "${TMP_DIR}/${ARCHIVE_NAME}" -d "${TMP_DIR}" 2>/dev/null || true
+            else
+                tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "${TMP_DIR}" 2>/dev/null || true
+            fi
+            FOUND="$(find "${TMP_DIR}" -type f \( -name "arcade" -o -name "arcade.exe" \) | head -n 1)"
+            if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then
+                cp "$FOUND" "$TARGET_BINARY"
+                INSTALLED_VIA="github release archive (${LATEST_TAG})"
+            fi
+        fi
     fi
 
-    if [ "$DOWNLOAD_SUCCESS" -ne 1 ]; then
-        # Last resort: clone and build if git and go are installed
+    # Strategy B: Fallback to standalone direct binary asset or raw repository tree
+    if [ ! -f "$TARGET_BINARY" ]; then
+        RELEASE_URL="https://github.com/${REPO}/releases/latest/download/${DOWNLOAD_FILE}"
+        RAW_FALLBACK_URL="https://raw.githubusercontent.com/${REPO}/main/dist/${DOWNLOAD_FILE}"
+
+        info "Downloading pre-compiled binary: ${DOWNLOAD_FILE}..."
+
+        if curl -fsSL --connect-timeout 10 -o "$TARGET_BINARY" "$RELEASE_URL" 2>/dev/null; then
+            INSTALLED_VIA="github releases"
+        elif curl -fsSL --connect-timeout 10 -o "$TARGET_BINARY" "$RAW_FALLBACK_URL" 2>/dev/null; then
+            INSTALLED_VIA="github source tree"
+        fi
+    fi
+
+    # Strategy C: Build from source if git and go are present
+    if [ ! -f "$TARGET_BINARY" ]; then
         if command -v git >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
             info "Fetching repository and building from source..."
             git clone --depth 1 "https://github.com/${REPO}.git" "${TMP_DIR}/src" >/dev/null 2>&1

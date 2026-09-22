@@ -5,7 +5,8 @@ BINARY_NAME=arcade
 CMD_DIR=./cmd/arcade
 DIST_DIR=dist
 GO=go
-FLAGS=-buildvcs=false
+VERSION ?= v1.0.0
+FLAGS=-buildvcs=false -ldflags "-s -w -X main.version=$(VERSION)"
 
 .PHONY: all build test vet cross-compile clean
 

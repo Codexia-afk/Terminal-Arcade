@@ -4,7 +4,8 @@ set -e
 DIST_DIR="dist"
 CMD_DIR="./cmd/arcade"
 BINARY_NAME="arcade"
-FLAGS="-buildvcs=false"
+VERSION="${VERSION:-v1.0.0}"
+FLAGS="-buildvcs=false -ldflags -s -ldflags -w -ldflags -X=main.version=${VERSION}"
 
 echo "Creating distribution directory: $DIST_DIR"
 mkdir -p "$DIST_DIR"
