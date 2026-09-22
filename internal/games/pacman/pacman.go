@@ -1,6 +1,7 @@
 package pacman
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
 	"time"
@@ -76,8 +77,15 @@ type Game struct {
 	lives           int
 	score           int
 	bestScore       int
+	bestInfo        history.PersonalBestInfo
+	hasBest         bool
 	vulnerableTicks int
 	reason          string
+	dotsEaten       int
+	pelletsUsed     int
+	ghostsEaten     int
+	levelsCleared   int
+	livesLost       int
 	rng             *rand.Rand
 }
 
@@ -103,6 +111,17 @@ func (g *Game) TickInterval() time.Duration { return g.profile.Interval }
 // SetBestScore overrides high score for testing.
 func (g *Game) SetBestScore(b int) { g.bestScore = b }
 
+// Metrics returns the detailed session metrics satisfying engine.MetricsProvider.
+func (g *Game) Metrics() map[string]int {
+	return map[string]int{
+		"dots_eaten":         g.dotsEaten,
+		"power_pellets_used": g.pelletsUsed,
+		"ghosts_eaten":       g.ghostsEaten,
+		"levels_cleared":     g.levelsCleared,
+		"lives_lost":         g.livesLost,
+	}
+}
+
 // Init initializes the maze, ghost AI, and game state according to config.
 func (g *Game) Init(cfg engine.GameConfig) {
 	g.cfg = cfg
@@ -112,10 +131,19 @@ func (g *Game) Init(cfg engine.GameConfig) {
 	g.reason = ""
 	g.lives = g.profile.Lives
 	g.vulnerableTicks = 0
+	g.dotsEaten = 0
+	g.pelletsUsed = 0
+	g.ghostsEaten = 0
+	g.levelsCleared = 0
+	g.livesLost = 0
 
 	// Retrieve personal best
 	if store, err := history.Open(""); err == nil && store != nil {
 		g.bestScore = history.HighScore(store.Records, "pacman", string(cfg.Difficulty))
+		if pb, ok := history.PersonalBests(store.Records, "pacman"); ok {
+			g.bestInfo = pb
+			g.hasBest = true
+		}
 	}
 
 	g.maze = NewMaze()
@@ -214,10 +242,12 @@ func (g *Game) Tick() engine.TickResult {
 		g.maze.Tiles[g.playerPos.Y][g.playerPos.X] = TileEmpty
 		g.maze.Remaining--
 		g.score += 10
+		g.dotsEaten++
 	} else if tile == TilePellet {
 		g.maze.Tiles[g.playerPos.Y][g.playerPos.X] = TileEmpty
 		g.maze.Remaining--
 		g.score += 50
+		g.pelletsUsed++
 		g.vulnerableTicks = g.profile.PelletDuration
 		for _, gh := range g.ghosts {
 			if !gh.Eaten {
@@ -230,6 +260,7 @@ func (g *Game) Tick() engine.TickResult {
 	if g.maze.Remaining <= 0 {
 		g.state = stateWin
 		g.reason = "won"
+		g.levelsCleared++
 		return engine.TickResult{Continue: false, Reason: "won"}
 	}
 
@@ -281,8 +312,10 @@ func (g *Game) resolveCollisions(prevPlayerPos engine.Position, prevGhostPositio
 				g.score += 200
 				gh.Eaten = true
 				gh.Vulnerable = false
+				g.ghostsEaten++
 			} else if !gh.Eaten {
 				g.lives--
+				g.livesLost++
 				if g.lives <= 0 {
 					g.state = stateOver
 					g.reason = "died"
@@ -334,19 +367,25 @@ func (g *Game) renderTitle(s *engine.Screen, w, h int) {
 		` |_| /_/   \_\____|_|  |_/_/   \_\_| \_|`,
 	}
 
-	startY := (h - 14) / 2
-	if startY < 2 {
-		startY = 2
+	startY := (h - 16) / 2
+	if startY < 1 {
+		startY = 1
 	}
 
 	for i, line := range banner {
 		s.CenterText(startY+i, line, th.Player, th.Background)
 	}
 
-	s.CenterText(startY+7, "Arcade Maze Chase", th.HUD, th.Background)
-	s.CenterText(startY+9, "Difficulty: "+g.profile.Level.String()+"  |  Theme: "+th.Name, th.Text, th.Background)
-	s.CenterText(startY+11, "Controls: Arrow Keys / WASD  |  P: Pause  |  Q: Quit", th.Text, th.Background)
-	s.CenterText(startY+13, "Press SPACE or ENTER to Start", th.Accent, th.Background)
+	s.CenterText(startY+6, "Arcade Maze Chase", th.HUD, th.Background)
+	s.CenterText(startY+8, "Difficulty: "+g.profile.Level.String()+"  |  Theme: "+th.Name, th.Text, th.Background)
+
+	if g.hasBest {
+		bestText := fmt.Sprintf("Your best: %d pts (%s)", g.bestInfo.HighScore, history.FormatRelativeTime(g.bestInfo.HighScoreDate, time.Now()))
+		s.CenterText(startY+10, bestText, th.Item, th.Background)
+	}
+
+	s.CenterText(startY+12, "Controls: Arrow Keys / WASD  |  P: Pause  |  Q: Quit", th.Text, th.Background)
+	s.CenterText(startY+14, "Press SPACE or ENTER to Start", th.Accent, th.Background)
 }
 
 func (g *Game) renderMaze(s *engine.Screen, w, h int) {

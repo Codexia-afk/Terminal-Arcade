@@ -140,3 +140,36 @@ func TestPersonalBestTracking(t *testing.T) {
 		t.Errorf("expected current score %d to beat best %d", g.score, g.bestScore)
 	}
 }
+
+func TestSnakeMetrics(t *testing.T) {
+	g := newTestSnake(engine.Medium)
+	// Snake at (1, 5) moving right. Wall is at X=34.
+	// Obstacle at (2, 5). Snake queues Up (X:0, Y:-1) to avoid obstacle.
+	g.snake = []engine.Position{{X: 1, Y: 5}, {X: 0, Y: 5}}
+	g.dir = engine.Position{X: 1, Y: 0}
+	g.obstacles[engine.Position{X: 2, Y: 5}] = true
+
+	// Turn Up
+	g.queuedDir = engine.Position{X: 0, Y: -1}
+	// Place food at (1, 4)
+	g.food = engine.Position{X: 1, Y: 4}
+
+	res := g.Tick()
+	if !res.Continue {
+		t.Fatalf("unexpected termination: %s", res.Reason)
+	}
+
+	metrics := g.Metrics()
+	if metrics["near_misses"] != 1 {
+		t.Errorf("expected 1 near miss, got %d", metrics["near_misses"])
+	}
+	if metrics["food_eaten"] != 1 {
+		t.Errorf("expected 1 food eaten, got %d", metrics["food_eaten"])
+	}
+	if metrics["max_length_reached"] != 3 {
+		t.Errorf("expected max length 3, got %d", metrics["max_length_reached"])
+	}
+	if metrics["ticks_survived"] != 1 {
+		t.Errorf("expected 1 tick survived, got %d", metrics["ticks_survived"])
+	}
+}

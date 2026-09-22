@@ -2,6 +2,7 @@
 package ballplate
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -87,25 +88,33 @@ func Profiles(d engine.Difficulty) Profile {
 
 // Game implements engine.Game for Ball and Plate.
 type Game struct {
-	cfg       engine.GameConfig
-	profile   Profile
-	state     gameState
-	arenaW    int
-	arenaH    int
-	plateX    int
-	plateY    int
-	plateW    int
-	ballX     float64
-	ballY     float64
-	ballVx    float64
-	ballVy    float64
-	attached  bool
-	bricks    []Brick
-	remBricks int
-	lives     int
-	score     int
-	bestScore int
-	reason    string
+	cfg          engine.GameConfig
+	profile      Profile
+	state        gameState
+	arenaW       int
+	arenaH       int
+	plateX       int
+	plateY       int
+	plateW       int
+	ballX        float64
+	ballY        float64
+	ballVx       float64
+	ballVy       float64
+	attached     bool
+	bricks       []Brick
+	remBricks    int
+	lives        int
+	score        int
+	bestScore    int
+	bestInfo     history.PersonalBestInfo
+	hasBest      bool
+	reason       string
+	bricksBroken int
+	maxSpeed     int
+	plateHits    int
+	livesLost    int
+	currentRally int
+	longestRally int
 }
 
 // New creates an uninitialized Ball and Plate game.
@@ -131,6 +140,17 @@ func (g *Game) TickInterval() time.Duration { return g.profile.Interval }
 // SetBestScore overrides high score for testing.
 func (g *Game) SetBestScore(b int) { g.bestScore = b }
 
+// Metrics returns the detailed session metrics satisfying engine.MetricsProvider.
+func (g *Game) Metrics() map[string]int {
+	return map[string]int{
+		"bricks_broken":          g.bricksBroken,
+		"max_ball_speed_reached": g.maxSpeed,
+		"plate_hits":             g.plateHits,
+		"lives_lost":             g.livesLost,
+		"longest_rally":          g.longestRally,
+	}
+}
+
 // Init initializes the playfield, paddle, ball physics, and brick layout.
 func (g *Game) Init(cfg engine.GameConfig) {
 	g.cfg = cfg
@@ -142,9 +162,19 @@ func (g *Game) Init(cfg engine.GameConfig) {
 	g.plateW = g.profile.PlateWidth
 	g.plateX = (g.arenaW - g.plateW) / 2
 	g.plateY = g.arenaH - 2
+	g.bricksBroken = 0
+	g.maxSpeed = int(g.profile.BaseBallSpeed * 100)
+	g.plateHits = 0
+	g.livesLost = 0
+	g.currentRally = 0
+	g.longestRally = 0
 
 	if store, err := history.Open(""); err == nil && store != nil {
 		g.bestScore = history.HighScore(store.Records, "ballplate", string(cfg.Difficulty))
+		if pb, ok := history.PersonalBests(store.Records, "ballplate"); ok {
+			g.bestInfo = pb
+			g.hasBest = true
+		}
 	}
 
 	g.resetBallAttached()
@@ -295,6 +325,11 @@ func (g *Game) Tick() engine.TickResult {
 		if nextX >= plateLeft-0.5 && nextX <= plateRight+0.5 {
 			g.resolvePlateBounce(nextX)
 			nextY = plateTop - 0.5
+			g.plateHits++
+			g.currentRally++
+			if g.currentRally > g.longestRally {
+				g.longestRally = g.currentRally
+			}
 		}
 	}
 
@@ -313,6 +348,8 @@ func (g *Game) Tick() engine.TickResult {
 	// 6. Bottom boundary: life lost
 	if g.ballY >= float64(g.arenaH-1) {
 		g.lives--
+		g.livesLost++
+		g.currentRally = 0
 		if g.lives <= 0 {
 			g.state = stateOver
 			g.reason = "lost"
@@ -350,6 +387,10 @@ func (g *Game) resolvePlateBounce(hitX float64) {
 	} else if speed > 0.85 {
 		speed = 0.85
 	}
+	speedInt := int(speed * 100)
+	if speedInt > g.maxSpeed {
+		g.maxSpeed = speedInt
+	}
 
 	// Deflect angle up to ~60 degrees
 	maxAngle := 60.0 * (math.Pi / 180.0)
@@ -374,6 +415,7 @@ func (g *Game) checkBrickCollisions() {
 			if b.Health <= 0 {
 				g.remBricks--
 				g.score += b.Score
+				g.bricksBroken++
 			}
 			// Reverse vertical direction
 			g.ballVy = -g.ballVy
@@ -412,19 +454,25 @@ func (g *Game) renderTitle(s *engine.Screen, w, h int) {
 		` |____/_/   \_\_____|_____/_/   \_\_|   |_____/_/   \_\_| |_____|`,
 	}
 
-	startY := (h - 14) / 2
-	if startY < 2 {
-		startY = 2
+	startY := (h - 16) / 2
+	if startY < 1 {
+		startY = 1
 	}
 
 	for i, line := range banner {
 		s.CenterText(startY+i, line, th.Item, th.Background)
 	}
 
-	s.CenterText(startY+7, "Arcade Breakout with Angular Physics", th.HUD, th.Background)
-	s.CenterText(startY+9, "Difficulty: "+g.profile.Level.String()+"  |  Theme: "+th.Name, th.Text, th.Background)
-	s.CenterText(startY+11, "Controls: Arrow Keys / A/D  |  Space: Launch  |  P: Pause  |  Q: Quit", th.Text, th.Background)
-	s.CenterText(startY+13, "Press SPACE or ENTER to Start", th.Accent, th.Background)
+	s.CenterText(startY+6, "Arcade Breakout with Angular Physics", th.HUD, th.Background)
+	s.CenterText(startY+8, "Difficulty: "+g.profile.Level.String()+"  |  Theme: "+th.Name, th.Text, th.Background)
+
+	if g.hasBest {
+		bestText := fmt.Sprintf("Your best: %d pts (%s)", g.bestInfo.HighScore, history.FormatRelativeTime(g.bestInfo.HighScoreDate, time.Now()))
+		s.CenterText(startY+10, bestText, th.Item, th.Background)
+	}
+
+	s.CenterText(startY+12, "Controls: Arrow Keys / A/D  |  Space: Launch  |  P: Pause  |  Q: Quit", th.Text, th.Background)
+	s.CenterText(startY+14, "Press SPACE or ENTER to Start", th.Accent, th.Background)
 }
 
 func (g *Game) renderField(s *engine.Screen, w, h int) {

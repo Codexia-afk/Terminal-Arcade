@@ -1,21 +1,27 @@
 package menu
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/gdamore/tcell/v2"
 	"goarcade/internal/engine"
+	"goarcade/internal/history"
 )
 
 // ConfigPicker prompts the player to select Difficulty and Theme before game launch.
 type ConfigPicker struct {
 	screen   *engine.Screen
 	gameName string
+	store    *history.Store
 }
 
 // NewConfigPicker constructs a configuration picker for the given game.
-func NewConfigPicker(s *engine.Screen, gameName string) *ConfigPicker {
+func NewConfigPicker(s *engine.Screen, gameName string, store *history.Store) *ConfigPicker {
 	return &ConfigPicker{
 		screen:   s,
 		gameName: gameName,
+		store:    store,
 	}
 }
 
@@ -40,6 +46,23 @@ func (cp *ConfigPicker) Pick() (engine.GameConfig, bool) {
 	}, true
 }
 
+func (cp *ConfigPicker) renderPersonalBest(boxY int) {
+	if cp.store == nil || len(cp.store.Records) == 0 {
+		return
+	}
+	pb, found := history.PersonalBests(cp.store.Records, cp.gameName)
+	if !found || pb.HighScore <= 0 {
+		return
+	}
+
+	timeAgo := history.FormatRelativeTime(pb.HighScoreDate, time.Now())
+	bestText := fmt.Sprintf("★ Personal Best: %d pts (%s, %s)", pb.HighScore, pb.HighScoreDiff, timeAgo)
+	if pb.KeyMetricName != "" && pb.KeyMetricValue > 0 {
+		bestText += fmt.Sprintf("  •  %s: %d", pb.KeyMetricName, pb.KeyMetricValue)
+	}
+	cp.screen.CenterText(boxY-2, bestText, tcell.ColorYellow, tcell.ColorBlack)
+}
+
 func (cp *ConfigPicker) pickDifficulty() (engine.Difficulty, bool) {
 	options := []struct {
 		Level engine.Difficulty
@@ -60,6 +83,8 @@ func (cp *ConfigPicker) pickDifficulty() (engine.Difficulty, bool) {
 		boxH := len(options)*3 + 4
 		boxX := (w - boxW) / 2
 		boxY := (h - boxH) / 2
+
+		cp.renderPersonalBest(boxY)
 
 		title := "SELECT DIFFICULTY — " + cp.gameDisplayName()
 		cp.screen.BoxWithTitle(boxX, boxY, boxW, boxH, title, tcell.ColorAqua, tcell.ColorBlack, tcell.ColorWhite)
@@ -148,6 +173,8 @@ func (cp *ConfigPicker) pickTheme() (engine.Theme, bool) {
 		boxH := len(themeNames)*3 + 4
 		boxX := (w - boxW) / 2
 		boxY := (h - boxH) / 2
+
+		cp.renderPersonalBest(boxY)
 
 		title := "SELECT VISUAL THEME — " + cp.gameDisplayName()
 		cp.screen.BoxWithTitle(boxX, boxY, boxW, boxH, title, tcell.ColorFuchsia, tcell.ColorBlack, tcell.ColorWhite)

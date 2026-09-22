@@ -1,10 +1,10 @@
 # Contributing to Go Arcade
 
-Thank you for your interest in extending Go Arcade! This document describes coding conventions, testing guidelines, and the exact pattern for contributing a new game to the suite.
+Thank you for your interest in extending Go Arcade! This document describes coding conventions, testing guidelines, and the exact pattern for contributing a new game or feature to the suite.
 
 ---
 
-## Code Style & Guidelines
+## Code Style & Architectural Guidelines
 
 1. **Idiomatic Go**: All code must adhere to standard Go formatting. Run `gofmt -s -w .` before submitting.
 2. **Static Analysis**: Code must pass `go vet ./...` with zero warnings.
@@ -12,15 +12,17 @@ Thank you for your interest in extending Go Arcade! This document describes codi
    - Every package must have a package-level doc comment (`// Package ...`).
    - Every exported type, constant, variable, and function must have a clear doc comment.
 4. **Zero Unapproved Dependencies**:
-   - The suite only uses Go standard library and `github.com/gdamore/tcell/v2`.
+   - The suite uses only the Go standard library and `github.com/gdamore/tcell/v2`.
    - Do not introduce additional dependencies without clear justification.
 5. **Completely Offline**:
-   - No network calls, telemetry, or external web service integrations are permitted.
+   - Zero network calls, telemetry, update checks, or external web service integrations are permitted.
 6. **Strict Dependency Directions**:
    - `internal/engine` and `internal/history` depend on nothing else in the project.
    - `internal/games/<game>` may only depend on `internal/engine` and `internal/history`.
    - Games must never import other games or `internal/menu`.
    - `internal/history` must never import `tcell` or any rendering logic.
+7. **Deterministic Time / Clock Injection**:
+   - Streak and achievement calculations must accept reference `now time.Time` parameters rather than calling `time.Now()` directly, enabling deterministic unit testing across timezone and day boundaries.
 
 ---
 
@@ -32,7 +34,7 @@ Adding a new game to the suite is modular and straightforward. Follow these step
 Create a new directory: `internal/games/<mygame>/`.
 
 ### 2. Implement `engine.DifficultyProfile`
-Define a concrete configuration profile specifying the parameters for each difficulty level:
+Define a concrete configuration profile specifying the parameters for each difficulty level (Easy, Medium, Hard):
 
 ```go
 package mygame
@@ -43,8 +45,8 @@ import (
 )
 
 type Profile struct {
-	Level    engine.Difficulty
-	Speed    time.Duration
+	Level     engine.Difficulty
+	Speed     time.Duration
 	Obstacles int
 }
 
@@ -64,16 +66,18 @@ func Profiles(d engine.Difficulty) Profile {
 }
 ```
 
-### 3. Implement the `engine.Game` Interface
-Implement the interface contract in `internal/games/<mygame>/<mygame>.go`:
+### 3. Implement the `engine.Game` & `engine.MetricsProvider` Interfaces
+Implement the interface contracts in `internal/games/<mygame>/<mygame>.go`:
 
 ```go
 type Game struct {
-	cfg     engine.GameConfig
-	profile Profile
-	score   int
-	isOver  bool
-	reason  string
+	cfg        engine.GameConfig
+	profile    Profile
+	score      int
+	isOver     bool
+	reason     string
+	itemsHit   int
+	livesLost  int
 }
 
 func New() *Game { return &Game{} }
@@ -85,11 +89,21 @@ func (g *Game) IsOver() bool { return g.isOver }
 // Optional: specify tick rate if implementing engine.TickIntervalProvider
 func (g *Game) TickInterval() time.Duration { return g.profile.Speed }
 
+// Implement engine.MetricsProvider for deep stats tracking
+func (g *Game) Metrics() map[string]int {
+	return map[string]int{
+		"items_hit":  g.itemsHit,
+		"lives_lost": g.livesLost,
+	}
+}
+
 func (g *Game) Init(cfg engine.GameConfig) {
 	g.cfg = cfg
 	g.profile = Profiles(cfg.Difficulty)
 	g.score = 0
 	g.isOver = false
+	g.itemsHit = 0
+	g.livesLost = 0
 }
 
 func (g *Game) HandleInput(a engine.Action) {
@@ -115,7 +129,7 @@ func (g *Game) Render(s *engine.Screen) {
 1. In `internal/menu/mainmenu.go`:
    - Add a new `Choice` enum variant (e.g. `ChoiceMyGame`).
    - Add the item to `items` list in `NewMainMenu`.
-   - Add number key shortcut mapping.
+   - Add numeric key shortcut mapping.
 2. In `internal/menu/picker.go`:
    - Add game display name in `gameDisplayName()`.
    - Add difficulty descriptions in `difficultyDescription()`.
@@ -128,15 +142,16 @@ func (g *Game) Render(s *engine.Screen) {
 
 ## Testing Expectations
 
-All game simulation rules, collisions, scoring, state transitions, and history persistence must be 100% unit-testable headlessly without an interactive TTY:
+All game simulation rules, collisions, scoring, state transitions, physics, ghost AI, and history persistence must be 100% unit-testable headlessly without an interactive TTY or `sudo` permissions:
 
-- **No TTY requirement**: Unit tests must never open a real terminal screen or require user input.
+- **No TTY Requirement**: Unit tests must never open a real terminal screen or block for keyboard input.
 - **Run all tests**:
   ```bash
   go test -v ./...
   ```
-- **Coverage**: Ensure tests verify:
-  1. Difficulty parameter application.
-  2. Entity collisions and boundary conditions.
-  3. Score increments and win/loss conditions.
-  4. State transitions on key actions.
+- **Coverage Checklist**:
+  1. Difficulty parameter application (distinct parameters per mode).
+  2. Boundary collisions and game-over / win conditions.
+  3. Per-game metrics recording (`Metrics() map[string]int`).
+  4. Streak calculations across day and timezone boundaries.
+  5. Achievement evaluation against synthetic records.

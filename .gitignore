@@ -1,5 +1,7 @@
 # Compiled binary in root
 /arcade
+*.exe
+/dist/
 
 # Temporary files
 *.tmp

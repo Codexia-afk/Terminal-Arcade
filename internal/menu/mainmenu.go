@@ -2,8 +2,12 @@
 package menu
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/gdamore/tcell/v2"
 	"goarcade/internal/engine"
+	"goarcade/internal/history"
 )
 
 // Choice represents a main menu selection.
@@ -14,12 +18,15 @@ const (
 	ChoicePacman
 	ChoiceBallPlate
 	ChoiceHistory
+	ChoiceExport
+	ChoiceResetData
 	ChoiceQuit
 )
 
 // MainMenu manages navigation and rendering for the title selection screen.
 type MainMenu struct {
 	screen   *engine.Screen
+	store    *history.Store
 	selected int
 	items    []struct {
 		Choice Choice
@@ -28,10 +35,11 @@ type MainMenu struct {
 	}
 }
 
-// NewMainMenu constructs the main menu.
-func NewMainMenu(s *engine.Screen) *MainMenu {
+// NewMainMenu constructs the main menu with history awareness for streak display.
+func NewMainMenu(s *engine.Screen, store *history.Store) *MainMenu {
 	return &MainMenu{
 		screen:   s,
+		store:    store,
 		selected: 0,
 		items: []struct {
 			Choice Choice
@@ -41,8 +49,10 @@ func NewMainMenu(s *engine.Screen) *MainMenu {
 			{ChoiceSnake, "1. Snake", "Classic Nokia arcade snake with wrap and obstacle modes"},
 			{ChoicePacman, "2. Pacman", "Arcade maze chase with distinct ghost personalities"},
 			{ChoiceBallPlate, "3. Ball & Plate", "Breakout with angular deflection physics & tough bricks"},
-			{ChoiceHistory, "4. History & Stats", "View past session logs, personal bests, and total playtime"},
-			{ChoiceQuit, "5. Quit", "Exit back to terminal"},
+			{ChoiceHistory, "4. History, Stats & Badges", "View past sessions, achievements, streaks & 30-day heatmap"},
+			{ChoiceExport, "5. Export Data", "Save sessions and badges to local JSON or CSV file"},
+			{ChoiceResetData, "6. Reset Saved Data", "Clear all recorded session history and achievements"},
+			{ChoiceQuit, "7. Quit", "Exit back to terminal"},
 		},
 	}
 }
@@ -100,7 +110,11 @@ func (m *MainMenu) Show() Choice {
 				return ChoiceBallPlate
 			case '4':
 				return ChoiceHistory
-			case '5', 'q', 'Q':
+			case '5':
+				return ChoiceExport
+			case '6':
+				return ChoiceResetData
+			case '7', 'q', 'Q':
 				return ChoiceQuit
 			}
 		}
@@ -119,7 +133,7 @@ func (m *MainMenu) render() {
 		`  \____|\___/   /_/   \_\_| \_\\____/_/   \_\____/|_____|`,
 	}
 
-	startY := (h - 22) / 2
+	startY := (h - 26) / 2
 	if startY < 1 {
 		startY = 1
 	}
@@ -131,11 +145,23 @@ func (m *MainMenu) render() {
 
 	m.screen.CenterText(startY+6, "Terminal Arcade Suite  •  Offline Edition", tcell.ColorWhite, tcell.ColorBlack)
 
+	// Streak indicator
+	if m.store != nil && len(m.store.Records) > 0 {
+		streaks := history.CalculateStreaks(m.store.Records, time.Now())
+		if streaks.CurrentStreak > 0 {
+			streakText := fmt.Sprintf("🔥 %d-Day Streak!  (Personal Best: %d days)", streaks.CurrentStreak, streaks.LongestStreak)
+			m.screen.CenterText(startY+7, streakText, tcell.ColorYellow, tcell.ColorBlack)
+		} else if streaks.LongestStreak > 0 {
+			streakText := fmt.Sprintf("[Streak: 0 days | Best: %d days]", streaks.LongestStreak)
+			m.screen.CenterText(startY+7, streakText, tcell.ColorGray, tcell.ColorBlack)
+		}
+	}
+
 	// 2. Menu Items Container
-	boxW := 60
+	boxW := 66
 	boxH := len(m.items)*2 + 3
 	boxX := (w - boxW) / 2
-	boxY := startY + 8
+	boxY := startY + 9
 
 	m.screen.BoxWithTitle(boxX, boxY, boxW, boxH, "SELECT OPTION", tcell.ColorBlueViolet, tcell.ColorBlack, tcell.ColorWhite)
 
@@ -149,12 +175,10 @@ func (m *MainMenu) render() {
 			prefix = "► "
 			fg = tcell.ColorYellow
 			bg = tcell.ColorDarkBlue
-			// Fill highlight bar
 			m.screen.Fill(boxX+1, rowY, boxW-2, 1, ' ', fg, bg)
 		}
 
 		m.screen.DrawText(boxX+3, rowY, prefix+item.Label, fg, bg)
-		// Right-aligned or sub-description
 		if i == m.selected {
 			descY := boxY + boxH + 1
 			m.screen.CenterText(descY, item.Desc, tcell.ColorAqua, tcell.ColorBlack)
@@ -162,5 +186,5 @@ func (m *MainMenu) render() {
 	}
 
 	// 3. Footer instructions
-	m.screen.CenterText(h-2, "Navigation: ↑/↓, W/S, 1-5  |  Select: Enter/Space  |  Quit: Q/Esc", tcell.ColorGray, tcell.ColorBlack)
+	m.screen.CenterText(h-2, "Navigation: ↑/↓, W/S, 1-7  |  Select: Enter/Space  |  Quit: Q/Esc", tcell.ColorGray, tcell.ColorBlack)
 }

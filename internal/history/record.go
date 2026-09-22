@@ -3,19 +3,21 @@
 package history
 
 import (
+	"fmt"
 	"sort"
 	"time"
 )
 
 // Record represents one completed or quit game session.
 type Record struct {
-	Game       string        `json:"game"`       // "snake" | "pacman" | "ballplate"
-	Difficulty string        `json:"difficulty"` // "easy" | "medium" | "hard"
-	Theme      string        `json:"theme"`
-	Score      int           `json:"score"`
-	Outcome    string        `json:"outcome"` // "collision", "quit", "won", etc.
-	PlayedAt   time.Time     `json:"played_at"`
-	Duration   time.Duration `json:"duration"`
+	Game       string         `json:"game"`       // "snake" | "pacman" | "ballplate"
+	Difficulty string         `json:"difficulty"` // "easy" | "medium" | "hard"
+	Theme      string         `json:"theme"`
+	Score      int            `json:"score"`
+	Outcome    string         `json:"outcome"` // "collision", "quit", "won", etc.
+	PlayedAt   time.Time      `json:"played_at"`
+	Duration   time.Duration  `json:"duration"`
+	Metrics    map[string]int `json:"metrics,omitempty"`
 }
 
 // HighScore returns the highest score for a specific game and difficulty.
@@ -98,4 +100,92 @@ func Recent(records []Record, game string, n int) []Record {
 		return filtered[:n]
 	}
 	return filtered
+}
+
+// PersonalBestInfo contains highlights of personal records for a given game.
+type PersonalBestInfo struct {
+	HighScore       int
+	HighScoreDiff   string
+	HighScoreDate   time.Time
+	LongestDuration time.Duration
+	KeyMetricName   string
+	KeyMetricValue  int
+}
+
+// PersonalBests queries history for a game's standout achievements.
+func PersonalBests(records []Record, game string) (PersonalBestInfo, bool) {
+	var info PersonalBestInfo
+	found := false
+
+	for _, r := range records {
+		if r.Game != game {
+			continue
+		}
+		found = true
+
+		if r.Score > info.HighScore || (r.Score == info.HighScore && info.HighScore == 0) {
+			info.HighScore = r.Score
+			info.HighScoreDiff = r.Difficulty
+			info.HighScoreDate = r.PlayedAt
+		}
+		if r.Duration > info.LongestDuration {
+			info.LongestDuration = r.Duration
+		}
+
+		if r.Metrics != nil {
+			switch game {
+			case "snake":
+				info.KeyMetricName = "Max Length"
+				if val := r.Metrics["max_length_reached"]; val > info.KeyMetricValue {
+					info.KeyMetricValue = val
+				}
+			case "pacman":
+				info.KeyMetricName = "Ghosts Eaten"
+				if val := r.Metrics["ghosts_eaten"]; val > info.KeyMetricValue {
+					info.KeyMetricValue = val
+				}
+			case "ballplate":
+				info.KeyMetricName = "Longest Rally"
+				if val := r.Metrics["longest_rally"]; val > info.KeyMetricValue {
+					info.KeyMetricValue = val
+				}
+			}
+		}
+	}
+
+	return info, found
+}
+
+// FormatRelativeTime converts a timestamp into an intuitive human-readable offset.
+func FormatRelativeTime(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	diff := now.Sub(t)
+	if diff < 0 {
+		diff = 0
+	}
+
+	if diff < time.Minute {
+		return "just now"
+	}
+	if diff < time.Hour {
+		m := int(diff.Minutes())
+		if m == 1 {
+			return "1 min ago"
+		}
+		return fmt.Sprintf("%d mins ago", m)
+	}
+	if diff < 24*time.Hour {
+		h := int(diff.Hours())
+		if h == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", h)
+	}
+	days := int(diff.Hours() / 24)
+	if days == 1 {
+		return "yesterday"
+	}
+	return fmt.Sprintf("%d days ago", days)
 }

@@ -95,25 +95,30 @@ func (l *Loop) Run(g Game) TickResult {
 			}
 			if !paused {
 				g.HandleInput(a)
+				// For title screens or games that react directly to confirm/paddle moves
 				g.Render(l.Screen)
 				l.Screen.Flush()
 			}
 
 		case <-ticker.C:
-			// Non-blocking drain of any queued input before ticking
+			// Non-blocking drain of any queued inputs before simulation tick.
+			// Directional inputs are buffered to at most the latest intent to prevent pre-queued multi-turn stalls.
+			var latestDir Action = ActionNone
 		drain:
 			for {
 				select {
 				case a := <-l.Input:
-					if a == ActionQuit {
+					switch a {
+					case ActionQuit:
 						return TickResult{Continue: false, Reason: "quit"}
-					}
-					if a == ActionPause {
+					case ActionPause:
 						paused = !paused
-						continue
-					}
-					if !paused {
-						g.HandleInput(a)
+					case ActionUp, ActionDown, ActionLeft, ActionRight:
+						latestDir = a
+					default:
+						if !paused {
+							g.HandleInput(a)
+						}
 					}
 				default:
 					break drain
@@ -121,9 +126,19 @@ func (l *Loop) Run(g Game) TickResult {
 			}
 
 			if !paused {
+				if latestDir != ActionNone {
+					g.HandleInput(latestDir)
+				}
 				res := g.Tick()
 				g.Render(l.Screen)
 				l.Screen.Flush()
+
+				// Drop-and-continue strategy: if rendering took longer than tick interval,
+				// discard lagged ticks so simulation doesn't fast-forward jerkily.
+				for len(ticker.C) > 0 {
+					<-ticker.C
+				}
+
 				if !res.Continue {
 					return res
 				}

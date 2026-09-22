@@ -29,3 +29,8 @@ type Game interface {
 type TickIntervalProvider interface {
 	TickInterval() time.Duration
 }
+
+// MetricsProvider is an optional interface games can implement to supply detailed per-game session metrics.
+type MetricsProvider interface {
+	Metrics() map[string]int
+}

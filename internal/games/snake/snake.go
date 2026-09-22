@@ -2,6 +2,7 @@
 package snake
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
 	"time"
@@ -69,19 +70,24 @@ func Profiles(d engine.Difficulty) Profile {
 
 // Game implements engine.Game for Snake.
 type Game struct {
-	cfg       engine.GameConfig
-	profile   Profile
-	state     gameState
-	snake     []engine.Position
-	dir       engine.Position
-	queuedDir engine.Position
-	food      engine.Position
-	obstacles map[engine.Position]bool
-	score     int
-	bestScore int
-	reason    string
-	ticks     int
-	rng       *rand.Rand
+	cfg        engine.GameConfig
+	profile    Profile
+	state      gameState
+	snake      []engine.Position
+	dir        engine.Position
+	queuedDir  engine.Position
+	food       engine.Position
+	obstacles  map[engine.Position]bool
+	score      int
+	bestScore  int
+	bestInfo   history.PersonalBestInfo
+	hasBest    bool
+	reason     string
+	ticks      int
+	foodEaten  int
+	maxLength  int
+	nearMisses int
+	rng        *rand.Rand
 }
 
 // New creates an uninitialized Snake game.
@@ -107,6 +113,16 @@ func (g *Game) TickInterval() time.Duration { return g.profile.Interval }
 // SetBestScore manually overrides the personal best score (primarily for headless testing).
 func (g *Game) SetBestScore(best int) { g.bestScore = best }
 
+// Metrics returns the detailed session metrics satisfying engine.MetricsProvider.
+func (g *Game) Metrics() map[string]int {
+	return map[string]int{
+		"food_eaten":         g.foodEaten,
+		"max_length_reached": g.maxLength,
+		"ticks_survived":     g.ticks,
+		"near_misses":        g.nearMisses,
+	}
+}
+
 // Init initializes the game using the supplied configuration.
 func (g *Game) Init(cfg engine.GameConfig) {
 	g.cfg = cfg
@@ -115,11 +131,18 @@ func (g *Game) Init(cfg engine.GameConfig) {
 	g.score = 0
 	g.reason = ""
 	g.ticks = 0
+	g.foodEaten = 0
+	g.maxLength = 3
+	g.nearMisses = 0
 	g.obstacles = make(map[engine.Position]bool)
 
-	// Fetch personal best score from history if available
+	// Fetch personal best score and metrics from history if available
 	if store, err := history.Open(""); err == nil && store != nil {
 		g.bestScore = history.HighScore(store.Records, "snake", string(cfg.Difficulty))
+		if pb, ok := history.PersonalBests(store.Records, "snake"); ok {
+			g.bestInfo = pb
+			g.hasBest = true
+		}
 	}
 
 	cx := g.profile.Width / 2
@@ -212,7 +235,30 @@ func (g *Game) Tick() engine.TickResult {
 		return engine.TickResult{Continue: false, Reason: g.reason}
 	}
 
+	prevDir := g.dir
 	g.dir = g.queuedDir
+
+	// Near-miss check: if the player turned to dodge a lethal cell straight ahead
+	if prevDir != g.dir {
+		straight := g.snake[0].Add(prevDir)
+		isFatalStraight := false
+		if !g.profile.Wrap && (straight.X < 0 || straight.X >= g.profile.Width || straight.Y < 0 || straight.Y >= g.profile.Height) {
+			isFatalStraight = true
+		} else if g.obstacles[straight] {
+			isFatalStraight = true
+		} else {
+			for _, seg := range g.snake {
+				if seg.Equal(straight) {
+					isFatalStraight = true
+					break
+				}
+			}
+		}
+		if isFatalStraight {
+			g.nearMisses++
+		}
+	}
+
 	next := g.snake[0].Add(g.dir)
 
 	// Wall collision / Wrapping
@@ -241,6 +287,10 @@ func (g *Game) Tick() engine.TickResult {
 	// Food consumption
 	if next.Equal(g.food) {
 		g.score += 10
+		g.foodEaten++
+		if len(g.snake) > g.maxLength {
+			g.maxLength = len(g.snake)
+		}
 		g.spawnFood()
 	} else {
 		// Remove tail segment if food was not eaten
@@ -290,19 +340,25 @@ func (g *Game) renderTitle(s *engine.Screen, w, h int) {
 		` |____/|_| \_/_/   \_\_|\_\_____|`,
 	}
 
-	startY := (h - 14) / 2
-	if startY < 2 {
-		startY = 2
+	startY := (h - 16) / 2
+	if startY < 1 {
+		startY = 1
 	}
 
 	for i, line := range banner {
 		s.CenterText(startY+i, line, th.Accent, th.Background)
 	}
 
-	s.CenterText(startY+7, "Classic Nokia Arcade Snake", th.HUD, th.Background)
-	s.CenterText(startY+9, "Mode: "+g.profile.Level.String()+"  |  Theme: "+th.Name, th.Text, th.Background)
-	s.CenterText(startY+11, "Controls: Arrow Keys / WASD  |  P: Pause  |  Q: Quit", th.Text, th.Background)
-	s.CenterText(startY+13, "Press SPACE or ENTER to Start", th.Accent, th.Background)
+	s.CenterText(startY+6, "Classic Nokia Arcade Snake", th.HUD, th.Background)
+	s.CenterText(startY+8, "Mode: "+g.profile.Level.String()+"  |  Theme: "+th.Name, th.Text, th.Background)
+
+	if g.hasBest {
+		bestText := fmt.Sprintf("Your best: %d pts (%s)", g.bestInfo.HighScore, history.FormatRelativeTime(g.bestInfo.HighScoreDate, time.Now()))
+		s.CenterText(startY+10, bestText, th.Item, th.Background)
+	}
+
+	s.CenterText(startY+12, "Controls: Arrow Keys / WASD  |  P: Pause  |  Q: Quit", th.Text, th.Background)
+	s.CenterText(startY+14, "Press SPACE or ENTER to Start", th.Accent, th.Background)
 }
 
 func (g *Game) renderPlaying(s *engine.Screen, w, h int) {

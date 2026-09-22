@@ -147,3 +147,73 @@ func TestGhostAIDecisionLogic(t *testing.T) {
 		t.Errorf("eaten ghost expected to move Right (+1, 0) towards Home, got (%d, %d)", dirHome.X, dirHome.Y)
 	}
 }
+
+func TestPacmanMetrics(t *testing.T) {
+	g := newTestPacman(engine.Medium)
+	// Safely position ghosts
+	for _, gh := range g.ghosts {
+		gh.Pos = engine.Position{X: 1, Y: 1}
+	}
+
+	// 1. Eat a dot
+	startPos := g.playerPos
+	dotPos := startPos.Add(engine.Position{X: -1, Y: 0})
+	g.maze.Tiles[dotPos.Y][dotPos.X] = TileDot
+	g.playerDir = engine.Position{X: -1, Y: 0}
+	g.queuedDir = g.playerDir
+
+	res := g.Tick()
+	if !res.Continue {
+		t.Fatalf("unexpected termination: %s", res.Reason)
+	}
+
+	metrics := g.Metrics()
+	if metrics["dots_eaten"] != 1 {
+		t.Errorf("expected 1 dot eaten, got %d", metrics["dots_eaten"])
+	}
+
+	// 2. Eat a pellet
+	pelletPos := g.playerPos.Add(engine.Position{X: -1, Y: 0})
+	g.maze.Tiles[pelletPos.Y][pelletPos.X] = TilePellet
+	g.playerDir = engine.Position{X: -1, Y: 0}
+	g.queuedDir = g.playerDir
+
+	res = g.Tick()
+	if !res.Continue {
+		t.Fatalf("unexpected termination: %s", res.Reason)
+	}
+
+	metrics = g.Metrics()
+	if metrics["power_pellets_used"] != 1 {
+		t.Errorf("expected 1 power pellet used, got %d", metrics["power_pellets_used"])
+	}
+
+	// 3. Eat a vulnerable ghost
+	g.ghosts[0].Pos = g.playerPos.Add(engine.Position{X: -1, Y: 0})
+	g.ghosts[0].Vulnerable = true
+	g.maze.Tiles[g.ghosts[0].Pos.Y][g.ghosts[0].Pos.X] = TileEmpty
+	g.playerDir = engine.Position{X: -1, Y: 0}
+	g.queuedDir = g.playerDir
+
+	res = g.Tick()
+	if !res.Continue {
+		t.Fatalf("unexpected termination: %s", res.Reason)
+	}
+
+	metrics = g.Metrics()
+	if metrics["ghosts_eaten"] != 1 {
+		t.Errorf("expected 1 ghost eaten, got %d", metrics["ghosts_eaten"])
+	}
+
+	// 4. Test losing a life
+	g.ghosts[0].Vulnerable = false
+	g.ghosts[0].Eaten = false
+	g.ghosts[0].Pos = g.playerPos
+
+	// Collision resolution on next tick or direct resolution
+	g.resolveCollisions(g.playerPos, nil)
+	metrics = g.Metrics()
+	if metrics["lives_lost"] != 1 {
+		t.Errorf("expected 1 life lost, got %d", metrics["lives_lost"])
+	}
+}

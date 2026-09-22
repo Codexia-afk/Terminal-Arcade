@@ -131,3 +131,51 @@ func TestLifeLossAndGameOver(t *testing.T) {
 		t.Errorf("expected IsOver() to be true")
 	}
 }
+
+func TestBallPlateMetrics(t *testing.T) {
+	g := newTestBallPlate(engine.Medium)
+
+	// 1. Test Plate Hits and Longest Rally
+	plateCenter := float64(g.plateX) + float64(g.plateW)/2.0
+	g.ballX = plateCenter
+	g.ballY = float64(g.plateY) - 0.4
+	g.ballVy = 0.4
+
+	res := g.Tick()
+	if !res.Continue {
+		t.Fatalf("unexpected termination: %s", res.Reason)
+	}
+
+	metrics := g.Metrics()
+	if metrics["plate_hits"] != 1 {
+		t.Errorf("expected 1 plate hit, got %d", metrics["plate_hits"])
+	}
+	if metrics["longest_rally"] != 1 {
+		t.Errorf("expected longest rally 1, got %d", metrics["longest_rally"])
+	}
+
+	// 2. Test Brick Broken metric
+	b := &g.bricks[0]
+	b.Health = 1
+	g.ballX = float64(b.X)
+	g.ballY = float64(b.Y)
+	g.checkBrickCollisions()
+
+	metrics = g.Metrics()
+	if metrics["bricks_broken"] != 1 {
+		t.Errorf("expected 1 brick broken, got %d", metrics["bricks_broken"])
+	}
+
+	// 3. Test Life Lost metric resets current rally
+	g.ballY = float64(g.arenaH + 1)
+	g.Tick()
+
+	metrics = g.Metrics()
+	if metrics["lives_lost"] != 1 {
+		t.Errorf("expected 1 life lost, got %d", metrics["lives_lost"])
+	}
+	// Longest rally remains 1 even though life was lost
+	if metrics["longest_rally"] != 1 {
+		t.Errorf("expected longest rally 1 preserved, got %d", metrics["longest_rally"])
+	}
+}
