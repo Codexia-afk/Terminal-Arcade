@@ -1,5 +1,5 @@
 # .goreleaser.yaml for Terminal-Arcade cross-platform releases
-version: 1
+version: 2
 
 before:
   hooks:
@@ -22,20 +22,20 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - format: tar.gz
+  - id: default
+    formats:
+      - tar.gz
     name_template: "arcade_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
       - LICENSE
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
 
 checksum:
   name_template: 'checksums.txt'
-
-snapshot:
-  name_template: "{{ .Tag }}-next"
 
 changelog:
   sort: asc
