@@ -93,6 +93,14 @@ func (g *Ghost) DecideNextMove(m *Maze, pacmanPos, pacmanDir engine.Position, rn
 		}
 		return g.bestMoveTowards(choices, target, m)
 
+	case "roam":
+		// Roamer patrols between opposite corners / roaming waypoints
+		target := engine.Position{X: m.Width - 2 - pacmanPos.X, Y: m.Height - 2 - pacmanPos.Y}
+		if (pacmanPos.X+pacmanPos.Y)%2 == 0 {
+			target = engine.Position{X: 1, Y: 1}
+		}
+		return g.bestMoveTowards(choices, target, m)
+
 	default: // "random"
 		if rng != nil && len(choices) > 0 {
 			return choices[rng.Intn(len(choices))]

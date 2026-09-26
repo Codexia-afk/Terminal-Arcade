@@ -2,6 +2,8 @@ package engine
 
 import (
 	"testing"
+
+	"github.com/gdamore/tcell/v2"
 )
 
 func TestDifficulty(t *testing.T) {
@@ -108,3 +110,89 @@ func TestThemes(t *testing.T) {
 		t.Errorf("expected valid fallback theme")
 	}
 }
+
+func TestFiveThemes(t *testing.T) {
+	expected := []string{"Retro Green", "Neon", "Monochrome", "Cyberpunk", "Ocean"}
+	names := ThemeNames()
+	if len(names) != 5 {
+		t.Fatalf("expected 5 themes, got %d", len(names))
+	}
+	for i, exp := range expected {
+		if names[i] != exp {
+			t.Errorf("expected theme %d to be %s, got %s", i, exp, names[i])
+		}
+		th := GetTheme(exp)
+		if th.SnakeHeadGlyph == 0 || th.SnakeBodyGlyph == 0 || th.SnakeFoodGlyph == 0 {
+			t.Errorf("theme %s missing snake element glyphs", exp)
+		}
+		// Verify directional head runes
+		if th.SnakeHeadUp == 0 || th.SnakeHeadDown == 0 || th.SnakeHeadLeft == 0 || th.SnakeHeadRight == 0 {
+			t.Errorf("theme %s missing directional head runes", exp)
+		}
+
+		headR := th.SnakeHeadForDir(Position{X: 1, Y: 0})
+		if headR != th.SnakeHeadRight {
+			t.Errorf("expected right head glyph %c, got %c", th.SnakeHeadRight, headR)
+		}
+		headL := th.SnakeHeadForDir(Position{X: -1, Y: 0})
+		if headL != th.SnakeHeadLeft {
+			t.Errorf("expected left head glyph %c, got %c", th.SnakeHeadLeft, headL)
+		}
+		headU := th.SnakeHeadForDir(Position{X: 0, Y: -1})
+		if headU != th.SnakeHeadUp {
+			t.Errorf("expected up head glyph %c, got %c", th.SnakeHeadUp, headU)
+		}
+		headD := th.SnakeHeadForDir(Position{X: 0, Y: 1})
+		if headD != th.SnakeHeadDown {
+			t.Errorf("expected down head glyph %c, got %c", th.SnakeHeadDown, headD)
+		}
+	}
+}
+
+func TestMockScreenRenderingAndBoxes(t *testing.T) {
+	simScreen := tcell.NewSimulationScreen("")
+	if err := simScreen.Init(); err != nil {
+		t.Fatalf("failed to init simulation screen: %v", err)
+	}
+	defer simScreen.Fini()
+
+	simScreen.SetSize(80, 24)
+	screen := NewScreen(simScreen)
+
+	// Test DoubleBox
+	screen.DoubleBoxWithTitle(5, 5, 20, 10, "TEST", tcell.ColorAqua, tcell.ColorBlack, tcell.ColorWhite)
+	screen.Flush()
+
+	c, _, _, _ := simScreen.GetContent(5, 5)
+	if c != '╔' {
+		t.Errorf("expected top-left double border '╔', got '%c'", c)
+	}
+	c, _, _, _ = simScreen.GetContent(24, 5)
+	if c != '╗' {
+		t.Errorf("expected top-right double border '╗', got '%c'", c)
+	}
+
+	// Test Theme Rendering
+	for _, themeName := range ThemeNames() {
+		th := GetTheme(themeName)
+		screen.Clear(th.Background)
+		screen.DrawCell(10, 10, th.SnakeHeadGlyph, th.Player, th.Background)
+		screen.DrawCell(11, 10, th.SnakeBodyGlyph, th.Player, th.Background)
+		screen.DrawCell(12, 10, th.SnakeFoodGlyph, th.Item, th.Background)
+		screen.Flush()
+
+		rHead, _, _, _ := simScreen.GetContent(10, 10)
+		if rHead != th.SnakeHeadGlyph {
+			t.Errorf("theme %s: expected head '%c', got '%c'", themeName, th.SnakeHeadGlyph, rHead)
+		}
+		rBody, _, _, _ := simScreen.GetContent(11, 10)
+		if rBody != th.SnakeBodyGlyph {
+			t.Errorf("theme %s: expected body '%c', got '%c'", themeName, th.SnakeBodyGlyph, rBody)
+		}
+		rFood, _, _, _ := simScreen.GetContent(12, 10)
+		if rFood != th.SnakeFoodGlyph {
+			t.Errorf("theme %s: expected food '%c', got '%c'", themeName, th.SnakeFoodGlyph, rFood)
+		}
+	}
+}
+

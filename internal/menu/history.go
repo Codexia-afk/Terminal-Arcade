@@ -275,6 +275,13 @@ func (hs *HistoryScreen) render(records []history.Record) {
 
 			dateStr := r.PlayedAt.Format("01/02 15:04")
 			durStr := formatDuration(r.Duration)
+			gameStr := r.Game
+			if r.Game == "snake" && r.Mode != "" && r.Mode != "classic" {
+				gameStr = "snk:" + r.Mode
+				if len(gameStr) > 9 {
+					gameStr = gameStr[:9]
+				}
+			}
 			diffStr := r.Difficulty
 			if len(diffStr) > 6 {
 				diffStr = diffStr[:6]
@@ -289,7 +296,7 @@ func (hs *HistoryScreen) render(records []history.Record) {
 			}
 
 			line := fmt.Sprintf("  %-10s %-9s %-7s %-10s %-6d %-7s %s",
-				dateStr, r.Game, diffStr, themeStr, r.Score, outcomeStr, durStr)
+				dateStr, gameStr, diffStr, themeStr, r.Score, outcomeStr, durStr)
 
 			fg := tcell.ColorWhite
 			if r.Outcome == "won" {
@@ -330,7 +337,7 @@ func (hs *HistoryScreen) renderAchievements() {
 		boxH = 12
 	}
 
-	hs.screen.BoxWithTitle(2, boxY, leftW, boxH, "ACHIEVEMENT BADGES", tcell.ColorGold, tcell.ColorBlack, tcell.ColorWhite)
+	hs.screen.BoxWithTitle(2, boxY, leftW, boxH, "ACHIEVEMENT BADGES (15)", tcell.ColorGold, tcell.ColorBlack, tcell.ColorWhite)
 
 	var items []history.Achievement
 	if hs.achStore != nil {
@@ -339,43 +346,66 @@ func (hs *HistoryScreen) renderAchievements() {
 		items = history.DefaultAchievements()
 	}
 
-	// Render each achievement (takes 2-3 lines each)
+	var records []history.Record
+	if hs.store != nil {
+		records = hs.store.Records
+	}
+	now := time.Now()
+
+	// Render each achievement (takes 3-4 lines each)
 	achLines := make([]struct {
 		Text string
 		Fg   tcell.Color
 	}, 0)
 
 	for _, a := range items {
+		progress := history.CalculateProgressHint(a, records, now)
 		var statusText string
 		var statusColor tcell.Color
 		if a.IsUnlocked() {
-			statusText = fmt.Sprintf("★ [UNLOCKED - %s] %s", a.UnlockedAt.Format("2006/01/02"), a.Title)
+			statusText = fmt.Sprintf("★ [UNLOCKED] %s", a.Title)
 			statusColor = tcell.ColorLime
-		} else {
-			statusText = fmt.Sprintf("○ [LOCKED] %s", a.Title)
-			statusColor = tcell.ColorGray
-		}
-		achLines = append(achLines, struct {
-			Text string
-			Fg   tcell.Color
-		}{statusText, statusColor})
-
-		achLines = append(achLines, struct {
-			Text string
-			Fg   tcell.Color
-		}{"   " + a.Description, tcell.ColorWhite})
-
-		if !a.IsUnlocked() && a.Hint != "" {
 			achLines = append(achLines, struct {
 				Text string
 				Fg   tcell.Color
-			}{"   Hint: " + a.Hint, tcell.ColorAqua})
+			}{statusText, statusColor})
+			achLines = append(achLines, struct {
+				Text string
+				Fg   tcell.Color
+			}{"   " + a.Description, tcell.ColorWhite})
+			achLines = append(achLines, struct {
+				Text string
+				Fg   tcell.Color
+			}{"   " + progress, tcell.ColorLimeGreen})
+		} else {
+			statusText = fmt.Sprintf("○ [LOCKED] %s", a.Title)
+			statusColor = tcell.ColorGray
+			achLines = append(achLines, struct {
+				Text string
+				Fg   tcell.Color
+			}{statusText, statusColor})
+			achLines = append(achLines, struct {
+				Text string
+				Fg   tcell.Color
+			}{"   " + a.Description, tcell.ColorWhite})
+			achLines = append(achLines, struct {
+				Text string
+				Fg   tcell.Color
+			}{"   Progress: " + progress, tcell.ColorAqua})
+			if a.Hint != "" {
+				achLines = append(achLines, struct {
+					Text string
+					Fg   tcell.Color
+				}{"   Hint: " + a.Hint, tcell.ColorGray})
+			}
 		}
+
 		achLines = append(achLines, struct {
 			Text string
 			Fg   tcell.Color
 		}{"", tcell.ColorBlack}) // separator
 	}
+
 
 	visibleRows := boxH - 2
 	maxOffset := len(achLines) - visibleRows

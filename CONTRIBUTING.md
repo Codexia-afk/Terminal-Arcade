@@ -1,6 +1,6 @@
 # Contributing to Go Arcade
 
-Thank you for your interest in extending Go Arcade! This document describes coding conventions, testing guidelines, and the exact pattern for contributing a new game or feature to the suite.
+Thank you for your interest in extending Go Arcade! This document describes coding conventions, testing guidelines, and the exact patterns for adding a new Snake gameplay mode or an entirely new arcade game to the suite.
 
 ---
 
@@ -26,132 +26,230 @@ Thank you for your interest in extending Go Arcade! This document describes codi
 
 ---
 
-## How to Add a New Game
+## How to Add a New Snake Gameplay Mode
 
-Adding a new game to the suite is modular and straightforward. Follow these steps:
+Snake modes in Go Arcade are modular structs implementing `engine.Game` (and optionally `engine.TickIntervalProvider`), inheriting shared behavior from `BaseMode`.
 
-### 1. Create the Game Package
-Create a new directory: `internal/games/<mygame>/`.
+Follow these steps to add a new mode (e.g. `PortalMode`):
 
-### 2. Implement `engine.DifficultyProfile`
-Define a concrete configuration profile specifying the parameters for each difficulty level (Easy, Medium, Hard):
+### 1. Create the Mode File
+Create `internal/games/snake/modes/portal.go`:
 
 ```go
-package mygame
+package modes
 
 import (
 	"time"
+
 	"github.com/Codexia-afk/Terminal-Arcade/internal/engine"
 )
 
-type Profile struct {
-	Level     engine.Difficulty
-	Speed     time.Duration
-	Obstacles int
+// PortalMode represents a custom Snake gameplay mode.
+type PortalMode struct {
+	BaseMode
+	// Custom mode fields (e.g., portals, timers, hazards)
+	Portals [2]engine.Position
 }
 
-func (p Profile) DifficultyLevel() engine.Difficulty {
-	return p.Level
+// NewPortalMode creates a new uninitialized PortalMode.
+func NewPortalMode() *PortalMode {
+	return &PortalMode{}
 }
 
-func Profiles(d engine.Difficulty) Profile {
-	switch d {
-	case engine.Easy:
-		return Profile{Level: engine.Easy, Speed: 150 * time.Millisecond, Obstacles: 2}
+func (m *PortalMode) Name() string { return "portal" }
+func (m *PortalMode) Score() int   { return m.score }
+func (m *PortalMode) IsOver() bool { return m.isOver }
+
+func (m *PortalMode) TickInterval() time.Duration {
+	// Pacing based on difficulty
+	switch m.cfg.Difficulty {
 	case engine.Hard:
-		return Profile{Level: engine.Hard, Speed: 80 * time.Millisecond, Obstacles: 8}
+		return 80 * time.Millisecond
+	case engine.Medium:
+		return 100 * time.Millisecond
 	default:
-		return Profile{Level: engine.Medium, Speed: 110 * time.Millisecond, Obstacles: 5}
-	}
-}
-```
-
-### 3. Implement the `engine.Game` & `engine.MetricsProvider` Interfaces
-Implement the interface contracts in `internal/games/<mygame>/<mygame>.go`:
-
-```go
-type Game struct {
-	cfg        engine.GameConfig
-	profile    Profile
-	score      int
-	isOver     bool
-	reason     string
-	itemsHit   int
-	livesLost  int
-}
-
-func New() *Game { return &Game{} }
-
-func (g *Game) Name() string { return "mygame" }
-func (g *Game) Score() int   { return g.score }
-func (g *Game) IsOver() bool { return g.isOver }
-
-// Optional: specify tick rate if implementing engine.TickIntervalProvider
-func (g *Game) TickInterval() time.Duration { return g.profile.Speed }
-
-// Implement engine.MetricsProvider for deep stats tracking
-func (g *Game) Metrics() map[string]int {
-	return map[string]int{
-		"items_hit":  g.itemsHit,
-		"lives_lost": g.livesLost,
+		return 120 * time.Millisecond
 	}
 }
 
-func (g *Game) Init(cfg engine.GameConfig) {
-	g.cfg = cfg
-	g.profile = Profiles(cfg.Difficulty)
-	g.score = 0
-	g.isOver = false
-	g.itemsHit = 0
-	g.livesLost = 0
+func (m *PortalMode) Init(cfg engine.GameConfig) {
+	// 1. Initialize arena dimensions and base state
+	arenaW, arenaH := 36, 18
+	m.InitBase(cfg, arenaW, arenaH)
+	m.lives = 2
+
+	// 2. Set mode-specific state
+	m.Portals[0] = engine.Position{X: 5, Y: 5}
+	m.Portals[1] = engine.Position{X: arenaW - 6, Y: arenaH - 6}
+
+	// 3. Spawn initial food using BaseMode helper
+	m.SpawnFood()
 }
 
-func (g *Game) HandleInput(a engine.Action) {
-	// Translate engine actions (ActionUp, ActionDown, ActionConfirm, etc.)
+func (m *PortalMode) HandleInput(a engine.Action) {
+	m.BaseMode.HandleInput(a)
 }
 
-func (g *Game) Tick() engine.TickResult {
-	// Advance simulation step
-	if g.isOver {
-		return engine.TickResult{Continue: false, Reason: g.reason}
+func (m *PortalMode) Tick() engine.TickResult {
+	if m.isOver {
+		return engine.TickResult{Continue: false, Reason: m.reason}
 	}
+
+	// Advance direction from 2-step queue
+	m.AdvanceDirection()
+
+	// Calculate target position
+	head := m.body[0]
+	next := engine.Position{X: head.X + m.dir.X, Y: head.Y + m.dir.Y}
+
+	// Mode-specific teleport mechanic:
+	if next == m.Portals[0] {
+		next = m.Portals[1]
+	} else if next == m.Portals[1] {
+		next = m.Portals[0]
+	}
+
+	// Check boundary collisions
+	if next.X <= 0 || next.X >= m.arenaW-1 || next.Y <= 0 || next.Y >= m.arenaH-1 {
+		m.lives--
+		if m.lives <= 0 {
+			m.isOver = true
+			m.reason = "Collided with wall"
+			return engine.TickResult{Continue: false, Reason: m.reason}
+		}
+		// Reset snake to center on remaining lives
+		m.ResetSnake()
+		return engine.TickResult{Continue: true}
+	}
+
+	// Check self-collision
+	for _, segment := range m.body[:len(m.body)-1] {
+		if next == segment {
+			m.isOver = true
+			m.reason = "Collided with self"
+			return engine.TickResult{Continue: false, Reason: m.reason}
+		}
+	}
+
+	// Move snake body
+	m.body = append([]engine.Position{next}, m.body...)
+
+	// Food consumption
+	if next == m.food {
+		m.score += 10
+		m.foodEaten++
+		m.SpawnFood()
+	} else {
+		m.body = m.body[:len(m.body)-1]
+	}
+
 	return engine.TickResult{Continue: true}
 }
 
-func (g *Game) Render(s *engine.Screen) {
-	// Draw UI, borders, HUD, and game state using engine.Screen primitives
-	s.Clear(g.cfg.Theme.Background)
-	s.Box(0, 0, 40, 20, g.cfg.Theme.Wall, g.cfg.Theme.Background)
+func (m *PortalMode) Render(s *engine.Screen) {
+	// 1. Draw arena box and base layout
+	m.RenderArena(s)
+
+	// 2. Render portals
+	s.Set(m.originX+m.Portals[0].X, m.originY+m.Portals[0].Y, 'O', m.cfg.Theme.Food, m.cfg.Theme.Background)
+	s.Set(m.originX+m.Portals[1].X, m.originY+m.Portals[1].Y, 'O', m.cfg.Theme.Food, m.cfg.Theme.Background)
+
+	// 3. Render snake and food using BaseMode helper
+	m.RenderSnakeAndFood(s)
+
+	// 4. Render centered HUD strip
+	extraStatus := "Portals: Active"
+	m.RenderHUD(s, "Portal", extraStatus)
 }
 ```
 
-### 4. Register in Menu & Dispatch
-1. In `internal/menu/mainmenu.go`:
-   - Add a new `Choice` enum variant (e.g. `ChoiceMyGame`).
-   - Add the item to `items` list in `NewMainMenu`.
-   - Add numeric key shortcut mapping.
-2. In `internal/menu/picker.go`:
-   - Add game display name in `gameDisplayName()`.
-   - Add difficulty descriptions in `difficultyDescription()`.
-3. In `internal/menu/history.go`:
-   - Add the game to the tabs list and high scores summary list.
-4. In `cmd/arcade/main.go`:
-   - Add the case in the game selection dispatch switch.
+### 2. Register the Mode Constant & Metadata
+In `internal/games/snake/modes.go`:
+```go
+const (
+	// ... existing modes ...
+	ModePortal SnakeMode = "portal"
+)
+
+// Add to ModeList:
+var ModeList = []SnakeMode{
+	ModeClassic,
+	ModeZen,
+	ModeSurvival,
+	ModeTimeAttack,
+	ModeObstacle,
+	ModePortal, // New mode
+}
+
+// Add title, description, and difficulty table in modes.go
+```
+
+### 3. Register in Mode Factory & Game Orchestrator
+In `internal/games/snake/modes/factory.go` (or `internal/games/snake/game.go` `NewMode`):
+```go
+case ModePortal:
+	g.activeMode = modes.NewPortalMode()
+```
+
+### 4. Register in Menu Mode Picker
+In `internal/menu/picker.go`:
+Add the difficulty configuration details in `snakeModeDetails()` to display descriptions in the UI carousel.
+
+### 5. Write Headless Unit Tests
+Add unit tests in `internal/games/snake/modes/portal_test.go`:
+- Verify initialization under Easy, Medium, and Hard.
+- Verify custom mechanics (teleporting, scoring, lives decrement).
+- Ensure no TTY is required.
 
 ---
 
-## Testing Expectations
+## How to Add an Entirely New Game
+
+Adding a completely new arcade game to the suite (e.g. `Tetris` or `Space Invaders`):
+
+### 1. Create the Game Package
+Create `internal/games/<mygame>/<mygame>.go`.
+
+### 2. Implement the `engine.Game` Interface
+```go
+type Game interface {
+	Name() string
+	Init(cfg GameConfig)
+	HandleInput(action Action)
+	Tick() TickResult
+	Render(screen *Screen)
+	Score() int
+	IsOver() bool
+}
+```
+
+Optionally implement:
+- `engine.TickIntervalProvider` (`TickInterval() time.Duration`) for dynamic pacing.
+- `engine.MetricsProvider` (`Metrics() map[string]int`) for deep telemetry tracking.
+
+### 3. Register in Menu & CLI Dispatch
+1. In `internal/menu/mainmenu.go` or `internal/menu/picker.go`: add the game to the game selection carousel.
+2. In `internal/menu/history.go`: add high-score display entries.
+3. In `cmd/arcade/main.go`: instantiate the game in the game execution loop.
+
+---
+
+## Testing & Quality Expectations
 
 All game simulation rules, collisions, scoring, state transitions, physics, ghost AI, and history persistence must be 100% unit-testable headlessly without an interactive TTY or `sudo` permissions:
 
 - **No TTY Requirement**: Unit tests must never open a real terminal screen or block for keyboard input.
-- **Run all tests**:
+- **Run all unit tests**:
   ```bash
-  go test -v ./...
+  make test
+  # or
+  go test -buildvcs=false -v ./...
   ```
-- **Coverage Checklist**:
-  1. Difficulty parameter application (distinct parameters per mode).
-  2. Boundary collisions and game-over / win conditions.
-  3. Per-game metrics recording (`Metrics() map[string]int`).
-  4. Streak calculations across day and timezone boundaries.
-  5. Achievement evaluation against synthetic records.
+- **Run static analysis**:
+  ```bash
+  make vet
+  ```
+- **Cross-compile validation**:
+  ```bash
+  make cross-compile
+  ```

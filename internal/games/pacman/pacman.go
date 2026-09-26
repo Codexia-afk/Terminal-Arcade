@@ -64,6 +64,13 @@ func Profiles(d engine.Difficulty) Profile {
 	}
 }
 
+// ScorePopup represents a transient floating points notification.
+type ScorePopup struct {
+	Pos   engine.Position
+	Text  string
+	Ticks int
+}
+
 // Game implements engine.Game for Pacman.
 type Game struct {
 	cfg             engine.GameConfig
@@ -87,6 +94,13 @@ type Game struct {
 	levelsCleared   int
 	livesLost       int
 	rng             *rand.Rand
+
+	// Visual feedback state
+	popups          []ScorePopup
+	lastDotPos      engine.Position
+	dotFlashTicks   int
+	ghostFlashPos   engine.Position
+	ghostFlashTicks int
 }
 
 // New constructs an uninitialized Pacman game.
@@ -168,17 +182,10 @@ func (g *Game) initGhosts() {
 		name        string
 		personality string
 	}{
-		{"Blinky", "chase"},
-		{"Pinky", "random"},
-		{"Inky", "chase"},
-		{"Clyde", "ambush"},
-	}
-
-	if g.profile.Level == engine.Easy {
-		configs[0].personality = "random"
-		configs[1].personality = "random"
-	} else if g.profile.Level == engine.Hard {
-		configs[1].personality = "ambush"
+		{"Blinky", "chase"},  // Red: Aggressive chaser
+		{"Pinky", "ambush"},  // Pink: Ambush ahead
+		{"Inky", "roam"},     // Blue: Roamer
+		{"Clyde", "random"},  // Yellow: Random wanderer
 	}
 
 	for i := 0; i < g.profile.GhostCount; i++ {
@@ -243,6 +250,11 @@ func (g *Game) Tick() engine.TickResult {
 		g.maze.Remaining--
 		g.score += 10
 		g.dotsEaten++
+		g.lastDotPos = g.playerPos
+		g.dotFlashTicks = 2
+		if g.dotsEaten%4 == 0 {
+			engine.Beep()
+		}
 	} else if tile == TilePellet {
 		g.maze.Tiles[g.playerPos.Y][g.playerPos.X] = TileEmpty
 		g.maze.Remaining--
@@ -254,6 +266,25 @@ func (g *Game) Tick() engine.TickResult {
 				gh.Vulnerable = true
 			}
 		}
+		engine.Beep()
+	}
+
+	// Update transient feedback timers
+	if g.dotFlashTicks > 0 {
+		g.dotFlashTicks--
+	}
+	if g.ghostFlashTicks > 0 {
+		g.ghostFlashTicks--
+	}
+	if len(g.popups) > 0 {
+		activePopups := g.popups[:0]
+		for _, p := range g.popups {
+			p.Ticks--
+			if p.Ticks > 0 {
+				activePopups = append(activePopups, p)
+			}
+		}
+		g.popups = activePopups
 	}
 
 	// 3. Check for Level Win
@@ -313,7 +344,12 @@ func (g *Game) resolveCollisions(prevPlayerPos engine.Position, prevGhostPositio
 				gh.Eaten = true
 				gh.Vulnerable = false
 				g.ghostsEaten++
+				g.ghostFlashPos = gh.Pos
+				g.ghostFlashTicks = 4
+				g.popups = append(g.popups, ScorePopup{Pos: gh.Pos, Text: "+200", Ticks: 8})
+				engine.Beep()
 			} else if !gh.Eaten {
+
 				g.lives--
 				g.livesLost++
 				if g.lives <= 0 {
@@ -412,7 +448,8 @@ func (g *Game) renderMaze(s *engine.Screen, w, h int) {
 	for i := 0; i < g.lives; i++ {
 		livesIcon += "C "
 	}
-	hudText := "Score: " + strconv.Itoa(g.score) + "   Lives: " + livesIcon + " [" + g.profile.Level.String() + "]"
+	hudText := fmt.Sprintf("Score: %-5d Lives: %s [%s]  Red: Chase | Pink: Ambush | Blue: Roam",
+		g.score, livesIcon, g.profile.Level.String())
 	s.DrawText(startX+2, startY+1, hudText, th.HUD, th.Background)
 
 	// 2. Render Maze Tiles
@@ -438,6 +475,11 @@ func (g *Game) renderMaze(s *engine.Screen, w, h int) {
 		}
 	}
 
+	// Dot eating feedback flash
+	if g.dotFlashTicks > 0 {
+		s.DrawCell(startX+g.lastDotPos.X, boardY+g.lastDotPos.Y, '✦', tcell.ColorYellow, th.Background)
+	}
+
 	// 3. Render Ghosts
 	for _, gh := range g.ghosts {
 		glyph := th.EnemyGlyph
@@ -453,7 +495,7 @@ func (g *Game) renderMaze(s *engine.Screen, w, h int) {
 			glyph = '"'
 			color = tcell.ColorGray
 		} else if gh.Vulnerable {
-			glyph = 'w'
+			glyph = '◇'
 			color = th.Vulnerable
 			if g.vulnerableTicks < 10 && (g.vulnerableTicks%2 == 0) {
 				color = tcell.ColorWhite
@@ -461,6 +503,16 @@ func (g *Game) renderMaze(s *engine.Screen, w, h int) {
 		}
 
 		s.DrawCell(startX+gh.Pos.X, boardY+gh.Pos.Y, glyph, color, th.Background)
+	}
+
+	// Ghost eaten flash white feedback
+	if g.ghostFlashTicks > 0 {
+		s.DrawCell(startX+g.ghostFlashPos.X, boardY+g.ghostFlashPos.Y, '█', tcell.ColorWhite, th.Background)
+	}
+
+	// Inline floating score popups
+	for _, pop := range g.popups {
+		s.DrawText(startX+pop.Pos.X-1, boardY+pop.Pos.Y, pop.Text, tcell.ColorYellow, th.Background)
 	}
 
 	// 4. Render Pacman

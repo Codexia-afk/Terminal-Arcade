@@ -86,6 +86,13 @@ func Profiles(d engine.Difficulty) Profile {
 	}
 }
 
+// BrickHitFlash represents in-cell visual feedback when a brick is destroyed.
+type BrickHitFlash struct {
+	X, Y, W, H int
+	Text       string
+	Ticks      int
+}
+
 // Game implements engine.Game for Ball and Plate.
 type Game struct {
 	cfg          engine.GameConfig
@@ -115,6 +122,10 @@ type Game struct {
 	livesLost    int
 	currentRally int
 	longestRally int
+
+	// Feedback visual timers
+	plateHitFlashTicks int
+	brickFlashes       []BrickHitFlash
 }
 
 // New creates an uninitialized Ball and Plate game.
@@ -338,6 +349,21 @@ func (g *Game) Tick() engine.TickResult {
 	g.ballY = nextY
 	g.checkBrickCollisions()
 
+	// Update transient feedback timers
+	if g.plateHitFlashTicks > 0 {
+		g.plateHitFlashTicks--
+	}
+	if len(g.brickFlashes) > 0 {
+		active := g.brickFlashes[:0]
+		for _, bf := range g.brickFlashes {
+			bf.Ticks--
+			if bf.Ticks > 0 {
+				active = append(active, bf)
+			}
+		}
+		g.brickFlashes = active
+	}
+
 	// 5. Level win check
 	if g.remBricks <= 0 {
 		g.state = stateWin
@@ -368,6 +394,7 @@ func (g *Game) ResolvePlateBounce(hitX float64) {
 }
 
 func (g *Game) resolvePlateBounce(hitX float64) {
+	g.plateHitFlashTicks = 3 // Briefly invert plate colors for 50ms
 	plateCenter := float64(g.plateX) + float64(g.plateW)/2.0
 	halfWidth := float64(g.plateW) / 2.0
 	offset := (hitX - plateCenter) / halfWidth
@@ -377,6 +404,26 @@ func (g *Game) resolvePlateBounce(hitX float64) {
 		offset = -1.0
 	} else if offset > 1.0 {
 		offset = 1.0
+	}
+
+	// 3-zone deflection physics:
+	// Left zone (< -0.33): -60° to -20°
+	// Center zone (-0.33 to +0.33): -20° to +20°
+	// Right zone (> 0.33): +20° to +60°
+	var angle float64
+	degToRad := math.Pi / 180.0
+	if offset < -0.33 {
+		norm := (offset - (-0.33)) / (-1.0 - (-0.33))
+		deg := -20.0 - norm*40.0
+		angle = deg * degToRad
+	} else if offset > 0.33 {
+		norm := (offset - 0.33) / (1.0 - 0.33)
+		deg := 20.0 + norm*40.0
+		angle = deg * degToRad
+	} else {
+		norm := offset / 0.33
+		deg := norm * 20.0
+		angle = deg * degToRad
 	}
 
 	// Calculate current speed with difficulty-scaling
@@ -392,12 +439,9 @@ func (g *Game) resolvePlateBounce(hitX float64) {
 		g.maxSpeed = speedInt
 	}
 
-	// Deflect angle up to ~60 degrees
-	maxAngle := 60.0 * (math.Pi / 180.0)
-	angle := offset * maxAngle
-
 	g.ballVx = speed * math.Sin(angle)
 	g.ballVy = -math.Abs(speed * math.Cos(angle))
+	engine.Beep()
 }
 
 func (g *Game) checkBrickCollisions() {
@@ -416,13 +460,23 @@ func (g *Game) checkBrickCollisions() {
 				g.remBricks--
 				g.score += b.Score
 				g.bricksBroken++
+				g.brickFlashes = append(g.brickFlashes, BrickHitFlash{
+					X:     b.X,
+					Y:     b.Y,
+					W:     b.W,
+					H:     b.H,
+					Text:  fmt.Sprintf("+%d", b.Score),
+					Ticks: 4,
+				})
 			}
+			engine.Beep()
 			// Reverse vertical direction
 			g.ballVy = -g.ballVy
 			break
 		}
 	}
 }
+
 
 // Render draws playfield, HUD, bricks, plate, ball, and overlays.
 func (g *Game) Render(s *engine.Screen) {
@@ -493,13 +547,27 @@ func (g *Game) renderField(s *engine.Screen, w, h int) {
 		startY = 1
 	}
 
-	// 1. Render HUD
+	// 1. Render HUD with live speed indicator
 	s.Box(startX, startY, arenaW, hudH, th.HUD, th.Background)
 	livesIcon := ""
 	for i := 0; i < g.lives; i++ {
 		livesIcon += "● "
 	}
-	hudText := "Score: " + strconv.Itoa(g.score) + "  Lives: " + livesIcon + " Bricks: " + strconv.Itoa(g.remBricks) + " [" + g.profile.Level.String() + "]"
+	clearedCount := len(g.bricks) - g.remBricks
+	currentSpeed := g.profile.BaseBallSpeed + float64(clearedCount)*g.profile.SpeedScaleOnClear
+	speedMultiplier := currentSpeed / g.profile.BaseBallSpeed
+
+	speedGauge := "▂"
+	if speedMultiplier >= 1.5 {
+		speedGauge = "▂▃▄▅"
+	} else if speedMultiplier >= 1.3 {
+		speedGauge = "▂▃▄"
+	} else if speedMultiplier >= 1.15 {
+		speedGauge = "▂▃"
+	}
+
+	hudText := fmt.Sprintf("Score: %-5d Lives: %s Bricks: %-2d Speed: %s (%.1fx) [%s]",
+		g.score, livesIcon, g.remBricks, speedGauge, speedMultiplier, g.profile.Level.String())
 	s.DrawText(startX+2, startY+1, hudText, th.HUD, th.Background)
 
 	// 2. Render Playfield Border
@@ -521,14 +589,41 @@ func (g *Game) renderField(s *engine.Screen, w, h int) {
 		}
 	}
 
-	// 4. Render Plate (Paddle)
+	// In-cell brick destruction flashes and score popups
+	for _, bf := range g.brickFlashes {
+		for bx := 0; bx < bf.W; bx++ {
+			s.DrawCell(startX+bf.X+bx, fieldY+bf.Y, '█', tcell.ColorWhite, th.Background)
+		}
+		s.DrawText(startX+bf.X+1, fieldY+bf.Y, bf.Text, tcell.ColorYellow, tcell.ColorWhite)
+	}
+
+	// 4. Render Plate (3 zones visually distinguished with hit inversion)
 	plateColor := th.Player
-	if th.Name == "Monochrome" {
+	plateBg := th.Background
+	if g.plateHitFlashTicks > 0 {
+		plateColor = tcell.ColorWhite
+		plateBg = th.Accent
+	} else if th.Name == "Monochrome" {
 		plateColor = tcell.ColorWhite
 	}
+
 	for px := 0; px < g.plateW; px++ {
-		s.DrawCell(startX+g.plateX+px, fieldY+g.plateY, th.PlateGlyph, plateColor, th.Background)
+		glyph := th.PlateGlyph
+		cellColor := plateColor
+		if px == 0 {
+			glyph = '◄'
+			if g.plateHitFlashTicks == 0 {
+				cellColor = th.Accent
+			}
+		} else if px == g.plateW-1 {
+			glyph = '►'
+			if g.plateHitFlashTicks == 0 {
+				cellColor = th.Accent
+			}
+		}
+		s.DrawCell(startX+g.plateX+px, fieldY+g.plateY, glyph, cellColor, plateBg)
 	}
+
 
 	// 5. Render Ball (Sub-cell rounded interpolation)
 	renderBallX := int(math.Round(g.ballX))

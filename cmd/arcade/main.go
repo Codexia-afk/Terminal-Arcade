@@ -134,6 +134,7 @@ func main() {
 	}
 
 	screen := engine.NewScreen(rawScreen)
+	rawScreen.EnableMouse()
 
 	// Ensure terminal raw mode is ALWAYS restored on exit, error, or unexpected panic
 	defer func() {
@@ -158,12 +159,22 @@ func main() {
 		os.Exit(0)
 	}()
 
+	// Show Title Splash Screen on app launch
+	titleSplash := menu.NewTitleScreen(screen, store, version)
+	titleSplash.Show()
+
 	mainMenu := menu.NewMainMenu(screen, store)
 
 	for {
 		choice := mainMenu.Show()
 		if choice == menu.ChoiceQuit {
 			break
+		}
+
+		if choice == menu.ChoiceSettings {
+			settingsScreen := menu.NewSettingsScreen(screen)
+			settingsScreen.Show()
+			continue
 		}
 
 		if choice == menu.ChoiceHistory {
@@ -183,22 +194,36 @@ func main() {
 		}
 
 		var game engine.Game
+		gameName := ""
 		switch choice {
 		case menu.ChoiceSnake:
-			game = snake.New()
+			gameName = "snake"
 		case menu.ChoicePacman:
 			game = pacman.New()
+			gameName = "pacman"
 		case menu.ChoiceBallPlate:
 			game = ballplate.New()
+			gameName = "ballplate"
 		default:
 			continue
 		}
 
-		// Prompt user for Difficulty and Theme configuration
-		picker := menu.NewConfigPicker(screen, game.Name(), store)
+		// Prompt user for Mode, Difficulty and Theme configuration
+		picker := menu.NewConfigPicker(screen, gameName, store)
 		cfg, confirmed := picker.Pick()
 		if !confirmed {
 			continue // User canceled out of picker; return to main menu
+		}
+
+		// Instantiate mode struct for Snake
+		if choice == menu.ChoiceSnake {
+			game = snake.NewMode(snake.ModeFromString(cfg.Mode))
+		}
+
+		// Show Pre-Game Mission Briefing Screen
+		preGame := menu.NewPreGameScreen(screen, game.Name(), cfg, store)
+		if !preGame.Show() {
+			continue // User pressed Esc/Q to cancel launch
 		}
 
 		// Initialize selected game with chosen configuration
@@ -220,9 +245,15 @@ func main() {
 			metrics = mp.Metrics()
 		}
 
+		mode := cfg.Mode
+		if mode == "" && game.Name() == "snake" {
+			mode = "classic"
+		}
+
 		// Save completed or quit session to history
 		record := history.Record{
 			Game:       game.Name(),
+			Mode:       mode,
 			Difficulty: string(cfg.Difficulty),
 			Theme:      cfg.Theme.Name,
 			Score:      game.Score(),
@@ -235,6 +266,7 @@ func main() {
 
 		// Evaluate achievements after session
 		_ = achStore.Evaluate(store.Records, time.Now())
+
 	}
 }
 

@@ -1,6 +1,8 @@
 # Go Arcade — Terminal Arcade Game Suite Makefile
 # Provides targets for building, testing, vetting, and cross-compiling release binaries.
 
+export DEVELOPER_DIR ?= /Library/Developer/CommandLineTools
+
 BINARY_NAME=arcade
 CMD_DIR=./cmd/arcade
 DIST_DIR=dist
@@ -18,7 +20,7 @@ build:
 
 test:
 	@echo "Running all unit tests headlessly..."
-	$(GO) test -v ./...
+	$(GO) test -buildvcs=false -v ./...
 
 vet:
 	@echo "Running static analysis..."
@@ -32,8 +34,12 @@ cross-compile: clean
 	GOOS=darwin  GOARCH=amd64 $(GO) build $(FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)_darwin_amd64      $(CMD_DIR)
 	GOOS=darwin  GOARCH=arm64 $(GO) build $(FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)_darwin_arm64      $(CMD_DIR)
 	GOOS=windows GOARCH=amd64 $(GO) build $(FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)_windows_amd64.exe  $(CMD_DIR)
+	@echo "Generating SHA256 checksums..."
+	@cd $(DIST_DIR) && (command -v sha256sum >/dev/null 2>&1 && sha256sum $(BINARY_NAME)_* > checksums.txt || shasum -a 256 $(BINARY_NAME)_* > checksums.txt)
 	@echo "Cross-compilation complete:"
 	@ls -la $(DIST_DIR)
+	@echo "Checksums:"
+	@cat $(DIST_DIR)/checksums.txt
 
 clean:
 	@echo "Cleaning artifacts..."

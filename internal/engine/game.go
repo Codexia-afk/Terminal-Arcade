@@ -6,6 +6,7 @@ import "time"
 type GameConfig struct {
 	Difficulty Difficulty
 	Theme      Theme
+	Mode       string // optional gameplay mode e.g. "classic", "zen", "survival", "time_attack", "obstacle"
 }
 
 // TickResult represents the outcome of one game step.
@@ -33,4 +34,9 @@ type TickIntervalProvider interface {
 // MetricsProvider is an optional interface games can implement to supply detailed per-game session metrics.
 type MetricsProvider interface {
 	Metrics() map[string]int
+}
+
+// ModeProvider is an optional interface games can implement to expose their active gameplay mode.
+type ModeProvider interface {
+	Mode() string
 }

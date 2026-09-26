@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
+if [ -d "/Library/Developer/CommandLineTools" ] && [ -z "${DEVELOPER_DIR:-}" ]; then
+    export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
+fi
+
 DIST_DIR="dist"
 CMD_DIR="./cmd/arcade"
 BINARY_NAME="arcade"
 VERSION="${VERSION:-v1.0.0}"
-FLAGS="-buildvcs=false -ldflags -s -ldflags -w -ldflags -X=main.version=${VERSION}"
+FLAGS="-buildvcs=false -ldflags=-s -ldflags=-w -ldflags=-X=main.version=${VERSION}"
 
 echo "Creating distribution directory: $DIST_DIR"
 mkdir -p "$DIST_DIR"
@@ -25,5 +29,16 @@ GOOS=darwin GOARCH=arm64 go build $FLAGS -o "$DIST_DIR/${BINARY_NAME}_darwin_arm
 echo "5/5 Building for Windows (amd64)..."
 GOOS=windows GOARCH=amd64 go build $FLAGS -o "$DIST_DIR/${BINARY_NAME}_windows_amd64.exe" "$CMD_DIR"
 
+echo "Generating SHA256 checksums..."
+cd "$DIST_DIR"
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum ${BINARY_NAME}_* > checksums.txt
+elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 ${BINARY_NAME}_* > checksums.txt
+fi
+cd - >/dev/null
+
 echo "Build complete! Release artifacts in $DIST_DIR:"
 ls -lh "$DIST_DIR"
+echo "Checksums:"
+cat "$DIST_DIR/checksums.txt"

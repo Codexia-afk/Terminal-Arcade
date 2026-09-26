@@ -6,7 +6,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// Loop manages game execution with a fixed-interval ticker and non-blocking input handling.
+// Loop manages game execution with 60 FPS decoupled rendering and 2-step input buffering.
 type Loop struct {
 	Screen   *Screen
 	Input    chan Action
@@ -25,12 +25,12 @@ func NewLoop(s *Screen, defaultInterval time.Duration) *Loop {
 	}
 }
 
-// Run executes the game loop until the game concludes, the user quits, or an error occurs.
+// Run executes the game loop with 60 FPS decoupled rendering and 2-step input buffering.
 func (l *Loop) Run(g Game) TickResult {
-	interval := l.interval
+	simInterval := l.interval
 	if tip, ok := g.(TickIntervalProvider); ok {
 		if d := tip.TickInterval(); d > 0 {
-			interval = d
+			simInterval = d
 		}
 	}
 
@@ -69,10 +69,16 @@ func (l *Loop) Run(g Game) TickResult {
 		}
 	}()
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	// 60 FPS rendering ticker (approx 16.6ms) for silky-smooth animations and interpolation
+	renderTicker := time.NewTicker(16 * time.Millisecond)
+	defer renderTicker.Stop()
+
+	// Simulation ticker for game logic steps
+	simTicker := time.NewTicker(simInterval)
+	defer simTicker.Stop()
 
 	paused := false
+	dirQueue := make([]Action, 0, 2)
 
 	// Initial render
 	g.Render(l.Screen)
@@ -81,62 +87,53 @@ func (l *Loop) Run(g Game) TickResult {
 	for {
 		select {
 		case a := <-l.Input:
-			if a == ActionQuit {
+			switch a {
+			case ActionQuit:
 				return TickResult{Continue: false, Reason: "quit"}
-			}
-			if a == ActionPause {
+			case ActionPause:
 				paused = !paused
 				g.Render(l.Screen)
 				if paused {
 					l.renderPauseOverlay()
 				}
 				l.Screen.Flush()
-				continue
-			}
-			if !paused {
-				g.HandleInput(a)
-				// For title screens or games that react directly to confirm/paddle moves
-				g.Render(l.Screen)
-				l.Screen.Flush()
-			}
-
-		case <-ticker.C:
-			// Non-blocking drain of any queued inputs before simulation tick.
-			// Directional inputs are buffered to at most the latest intent to prevent pre-queued multi-turn stalls.
-			var latestDir Action = ActionNone
-		drain:
-			for {
-				select {
-				case a := <-l.Input:
-					switch a {
-					case ActionQuit:
-						return TickResult{Continue: false, Reason: "quit"}
-					case ActionPause:
-						paused = !paused
-					case ActionUp, ActionDown, ActionLeft, ActionRight:
-						latestDir = a
-					default:
-						if !paused {
-							g.HandleInput(a)
-						}
+			case ActionUp, ActionDown, ActionLeft, ActionRight:
+				if !paused {
+					// 2-step directional queue: buffer up to 2 directions
+					if len(dirQueue) < 2 {
+						dirQueue = append(dirQueue, a)
+					} else {
+						// Overwrite second direction with newest intent
+						dirQueue[1] = a
 					}
-				default:
-					break drain
+					// Immediate render on input for instantaneous feedback
+					g.Render(l.Screen)
+					l.Screen.Flush()
+				}
+			default:
+				if !paused {
+					g.HandleInput(a)
+					g.Render(l.Screen)
+					l.Screen.Flush()
 				}
 			}
 
+		case <-simTicker.C:
 			if !paused {
-				if latestDir != ActionNone {
-					g.HandleInput(latestDir)
+				// Process next directional action in the 2-step queue
+				if len(dirQueue) > 0 {
+					nextDir := dirQueue[0]
+					dirQueue = dirQueue[1:]
+					g.HandleInput(nextDir)
 				}
+
 				res := g.Tick()
 				g.Render(l.Screen)
 				l.Screen.Flush()
 
-				// Drop-and-continue strategy: if rendering took longer than tick interval,
-				// discard lagged ticks so simulation doesn't fast-forward jerkily.
-				for len(ticker.C) > 0 {
-					<-ticker.C
+				// Drop-and-continue strategy: discard lagged ticks
+				for len(simTicker.C) > 0 {
+					<-simTicker.C
 				}
 
 				if !res.Continue {
@@ -145,6 +142,13 @@ func (l *Loop) Run(g Game) TickResult {
 			} else {
 				g.Render(l.Screen)
 				l.renderPauseOverlay()
+				l.Screen.Flush()
+			}
+
+		case <-renderTicker.C:
+			// Continuous 60 FPS refresh for timer countdowns and visual feedback
+			if !paused {
+				g.Render(l.Screen)
 				l.Screen.Flush()
 			}
 		}

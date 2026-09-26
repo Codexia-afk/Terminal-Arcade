@@ -158,9 +158,24 @@ func TestAggregationQueries(t *testing.T) {
 	if recent3[0].Game != "ballplate" || recent3[1].Game != "pacman" || recent3[2].Game != "pacman" {
 		t.Errorf("unexpected ordering in Recent: %+v", recent3)
 	}
+
+	// PersonalBestForConfig
+	snakeClassicMed := Record{Game: "snake", Mode: "classic", Difficulty: "medium", Score: 250, PlayedAt: now}
+	snakeZenMed := Record{Game: "snake", Mode: "zen", Difficulty: "medium", Score: 95, PlayedAt: now}
+	recordsWithMode := append(records, snakeClassicMed, snakeZenMed)
+
+	pbClassic, ok := PersonalBestForConfig(recordsWithMode, "snake", "classic", "medium")
+	if !ok || pbClassic != 250 {
+		t.Errorf("expected 250 for snake classic medium, got %d (ok=%v)", pbClassic, ok)
+	}
+	pbZen, ok := PersonalBestForConfig(recordsWithMode, "snake", "zen", "medium")
+	if !ok || pbZen != 95 {
+		t.Errorf("expected 95 for snake zen medium, got %d (ok=%v)", pbZen, ok)
+	}
 }
 
 func TestStreaksCalculation(t *testing.T) {
+
 	// Fixed clock: 2026-06-10 14:00:00 UTC
 	now := time.Date(2026, 6, 10, 14, 0, 0, 0, time.UTC)
 
@@ -217,9 +232,9 @@ func TestAchievementsUnlockLogic(t *testing.T) {
 		t.Fatalf("OpenAchievements failed: %v", err)
 	}
 
-	// Verify all 10 achievements exist initially locked
-	if len(store.Items) < 10 {
-		t.Fatalf("expected at least 10 achievements, got %d", len(store.Items))
+	// Verify all 15 achievements exist initially locked
+	if len(store.Items) < 15 {
+		t.Fatalf("expected at least 15 achievements, got %d", len(store.Items))
 	}
 	for _, a := range store.Items {
 		if a.IsUnlocked() {
@@ -235,6 +250,7 @@ func TestAchievementsUnlockLogic(t *testing.T) {
 		// 9. "speed_demon": snake hard duration >= 60s
 		{
 			Game:       "snake",
+			Mode:       "classic",
 			Difficulty: "hard",
 			Score:      120,
 			Duration:   65 * time.Second,
@@ -266,10 +282,54 @@ func TestAchievementsUnlockLogic(t *testing.T) {
 		// 10. "night_owl": played between 00:00 and 04:00 local time
 		{
 			Game:       "snake",
+			Mode:       "classic",
 			Difficulty: "easy",
 			Score:      40,
 			Duration:   20 * time.Second,
 			PlayedAt:   time.Date(2026, 6, 10, 2, 30, 0, 0, time.UTC),
+		},
+		// 11. "zen_master": Zen mode length >= 50
+		{
+			Game:       "snake",
+			Mode:       "zen",
+			Difficulty: "medium",
+			Score:      60,
+			Duration:   50 * time.Second,
+			PlayedAt:   time.Date(2026, 6, 10, 15, 0, 0, 0, time.UTC),
+			Metrics:    map[string]int{"max_length_reached": 52, "mode": 1},
+		},
+		// 12. "wave_rider": Survival mode on hard, wave 5 cleared
+		{
+			Game:       "snake",
+			Mode:       "survival",
+			Difficulty: "hard",
+			Score:      150,
+			Outcome:    "won",
+			Duration:   70 * time.Second,
+			PlayedAt:   time.Date(2026, 6, 10, 16, 0, 0, 0, time.UTC),
+			Metrics:    map[string]int{"wave_reached": 5, "mode": 2},
+		},
+		// 13. "speed_racer": Time Attack score >= 200
+		{
+			Game:       "snake",
+			Mode:       "time_attack",
+			Difficulty: "medium",
+			Score:      220,
+			Duration:   60 * time.Second,
+			PlayedAt:   time.Date(2026, 6, 10, 17, 0, 0, 0, time.UTC),
+			Metrics:    map[string]int{"mode": 3},
+		},
+		// 14. "maze_runner": Obstacle challenge on hard, won
+		// 15. "mode_collector": (now have played classic, zen, survival, time_attack, obstacle)
+		{
+			Game:       "snake",
+			Mode:       "obstacle",
+			Difficulty: "hard",
+			Score:      180,
+			Outcome:    "won",
+			Duration:   80 * time.Second,
+			PlayedAt:   time.Date(2026, 6, 10, 18, 0, 0, 0, time.UTC),
+			Metrics:    map[string]int{"maze_level_cleared": 3, "mode": 4},
 		},
 	}
 
@@ -283,15 +343,21 @@ func TestAchievementsUnlockLogic(t *testing.T) {
 	}
 
 	unlocked := store.Evaluate(records, now)
-	if len(unlocked) != 10 {
-		t.Fatalf("expected all 10 achievements to unlock, got %d", len(unlocked))
+	if len(unlocked) != 15 {
+		t.Fatalf("expected all 15 achievements to unlock, got %d", len(unlocked))
 	}
 
 	for _, a := range store.Items {
 		if !a.IsUnlocked() {
 			t.Errorf("achievement %s failed to unlock", a.ID)
 		}
+		// Progress hint should report unlocked
+		hint := CalculateProgressHint(a, records, now)
+		if hint == "" {
+			t.Errorf("expected non-empty progress hint for %s", a.ID)
+		}
 	}
+
 
 	// Reopen store from disk to verify atomic persistence of achievements
 	reloaded, err := OpenAchievements(achFile)

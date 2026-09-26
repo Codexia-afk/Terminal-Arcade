@@ -114,3 +114,62 @@ func (s *Screen) Flush() {
 		s.Raw.Show()
 	}
 }
+
+// DoubleBox draws a border using double-line Unicode characters (╔═╗║╚═╝).
+func (s *Screen) DoubleBox(x, y, w, h int, fg, bg tcell.Color) {
+	if w < 2 || h < 2 {
+		return
+	}
+	s.DrawCell(x, y, '╔', fg, bg)
+	s.DrawCell(x+w-1, y, '╗', fg, bg)
+	s.DrawCell(x, y+h-1, '╚', fg, bg)
+	s.DrawCell(x+w-1, y+h-1, '╝', fg, bg)
+
+	for i := 1; i < w-1; i++ {
+		s.DrawCell(x+i, y, '═', fg, bg)
+		s.DrawCell(x+i, y+h-1, '═', fg, bg)
+	}
+	for i := 1; i < h-1; i++ {
+		s.DrawCell(x, y+i, '║', fg, bg)
+		s.DrawCell(x+w-1, y+i, '║', fg, bg)
+	}
+}
+
+// DoubleBoxWithTitle draws a double-line border with a centered title.
+func (s *Screen) DoubleBoxWithTitle(x, y, w, h int, title string, fg, bg, titleFg tcell.Color) {
+	s.DoubleBox(x, y, w, h, fg, bg)
+	if title != "" && w > 4 {
+		titleText := " " + title + " "
+		tw := runewidth.StringWidth(titleText)
+		if tw > w-4 {
+			titleText = titleText[:w-4]
+			tw = runewidth.StringWidth(titleText)
+		}
+		tx := x + (w-tw)/2
+		s.DrawText(tx, y, titleText, titleFg, bg)
+	}
+}
+
+// AudioBellEnabled toggles audio bell feedback across the suite.
+var AudioBellEnabled = true
+
+// Beep sends an audible terminal bell alert if supported by the terminal emulator.
+func (s *Screen) Beep() {
+	if !AudioBellEnabled {
+		return
+	}
+	if s.Raw != nil {
+		_ = s.Raw.Beep()
+	}
+}
+
+// Beep emits an audible terminal bell alert.
+func Beep() {
+	if !AudioBellEnabled {
+		return
+	}
+	// Emit ASCII bell control character
+	print("\a")
+}
+
+

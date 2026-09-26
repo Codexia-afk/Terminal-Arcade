@@ -10,8 +10,9 @@ import (
 
 // Record represents one completed or quit game session.
 type Record struct {
-	Game       string         `json:"game"`       // "snake" | "pacman" | "ballplate"
-	Difficulty string         `json:"difficulty"` // "easy" | "medium" | "hard"
+	Game       string         `json:"game"`                 // "snake" | "pacman" | "ballplate"
+	Mode       string         `json:"mode,omitempty"`       // snake mode: "classic", "zen", "survival", "time_attack", "obstacle"
+	Difficulty string         `json:"difficulty"`           // "easy" | "medium" | "hard"
 	Theme      string         `json:"theme"`
 	Score      int            `json:"score"`
 	Outcome    string         `json:"outcome"` // "collision", "quit", "won", etc.
@@ -19,6 +20,18 @@ type Record struct {
 	Duration   time.Duration  `json:"duration"`
 	Metrics    map[string]int `json:"metrics,omitempty"`
 }
+
+// EffectiveMode returns the normalized mode (defaults to "classic" for snake if empty).
+func (r Record) EffectiveMode() string {
+	if r.Mode != "" {
+		return r.Mode
+	}
+	if r.Game == "snake" {
+		return "classic"
+	}
+	return ""
+}
+
 
 // HighScore returns the highest score for a specific game and difficulty.
 func HighScore(records []Record, game, difficulty string) int {
@@ -156,6 +169,77 @@ func PersonalBests(records []Record, game string) (PersonalBestInfo, bool) {
 	return info, found
 }
 
+// PersonalBestForConfig finds the highest score for a specific game, mode, and difficulty.
+func PersonalBestForConfig(records []Record, game, mode, difficulty string) (int, bool) {
+	best := -1
+	for _, r := range records {
+		if r.Game != game {
+			continue
+		}
+		if mode != "" && r.EffectiveMode() != mode {
+			continue
+		}
+		if difficulty != "" && r.Difficulty != difficulty {
+			continue
+		}
+		if r.Score > best {
+			best = r.Score
+		}
+	}
+	if best >= 0 {
+		return best, true
+	}
+	return 0, false
+}
+
+// PersonalBestsForMode queries history for a game and mode's standout achievements.
+func PersonalBestsForMode(records []Record, game, mode string) (PersonalBestInfo, bool) {
+	var info PersonalBestInfo
+	found := false
+
+	for _, r := range records {
+		if r.Game != game {
+			continue
+		}
+		if mode != "" && r.EffectiveMode() != mode {
+			continue
+		}
+		found = true
+
+		if r.Score > info.HighScore || (r.Score == info.HighScore && info.HighScore == 0) {
+			info.HighScore = r.Score
+			info.HighScoreDiff = r.Difficulty
+			info.HighScoreDate = r.PlayedAt
+		}
+		if r.Duration > info.LongestDuration {
+			info.LongestDuration = r.Duration
+		}
+
+		if r.Metrics != nil {
+			switch game {
+			case "snake":
+				info.KeyMetricName = "Max Length"
+				if val := r.Metrics["max_length_reached"]; val > info.KeyMetricValue {
+					info.KeyMetricValue = val
+				}
+			case "pacman":
+				info.KeyMetricName = "Ghosts Eaten"
+				if val := r.Metrics["ghosts_eaten"]; val > info.KeyMetricValue {
+					info.KeyMetricValue = val
+				}
+			case "ballplate":
+				info.KeyMetricName = "Longest Rally"
+				if val := r.Metrics["longest_rally"]; val > info.KeyMetricValue {
+					info.KeyMetricValue = val
+				}
+			}
+		}
+	}
+
+	return info, found
+}
+
+
 // FormatRelativeTime converts a timestamp into an intuitive human-readable offset.
 func FormatRelativeTime(t time.Time, now time.Time) string {
 	if t.IsZero() {
@@ -189,3 +273,15 @@ func FormatRelativeTime(t time.Time, now time.Time) string {
 	}
 	return fmt.Sprintf("%d days ago", days)
 }
+
+// FormatDuration formats a time.Duration into compact readable format like "2m14s" or "45s".
+func FormatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	m := d / time.Minute
+	s := (d % time.Minute) / time.Second
+	if m > 0 {
+		return fmt.Sprintf("%dm%02ds", m, s)
+	}
+	return fmt.Sprintf("%ds", s)
+}
+

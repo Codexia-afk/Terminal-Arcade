@@ -20,19 +20,27 @@ const (
 	ChoiceHistory
 	ChoiceExport
 	ChoiceResetData
+	ChoiceSettings
 	ChoiceQuit
 )
+
+// MainMenuItem captures display details for a menu row.
+type MainMenuItem struct {
+	Choice Choice
+	Label  string
+	Desc   string
+}
 
 // MainMenu manages navigation and rendering for the title selection screen.
 type MainMenu struct {
 	screen   *engine.Screen
 	store    *history.Store
 	selected int
-	items    []struct {
-		Choice Choice
-		Label  string
-		Desc   string
-	}
+	items    []MainMenuItem
+	lastBoxX int
+	lastBoxY int
+	lastBoxW int
+	lastBoxH int
 }
 
 // NewMainMenu constructs the main menu with history awareness for streak display.
@@ -41,18 +49,15 @@ func NewMainMenu(s *engine.Screen, store *history.Store) *MainMenu {
 		screen:   s,
 		store:    store,
 		selected: 0,
-		items: []struct {
-			Choice Choice
-			Label  string
-			Desc   string
-		}{
-			{ChoiceSnake, "1. Snake", "Classic Nokia arcade snake with wrap and obstacle modes"},
-			{ChoicePacman, "2. Pacman", "Arcade maze chase with distinct ghost personalities"},
-			{ChoiceBallPlate, "3. Ball & Plate", "Breakout with angular deflection physics & tough bricks"},
-			{ChoiceHistory, "4. History, Stats & Badges", "View past sessions, achievements, streaks & 30-day heatmap"},
+		items: []MainMenuItem{
+			{ChoiceSnake, "1. Snake", "5 gameplay modes (Classic, Zen, Survival, Time Attack, Obstacle) × 3 tiers"},
+			{ChoicePacman, "2. Pacman", "Authentic maze chase with 4 distinct ghost AI personalities"},
+			{ChoiceBallPlate, "3. Ball & Plate", "Breakout with 3-zone paddle physics, speed gauge & tough bricks"},
+			{ChoiceHistory, "4. History, Stats & Achievements", "View past sessions, 15 achievements, streaks & 30-day heatmap"},
 			{ChoiceExport, "5. Export Data", "Save sessions and badges to local JSON or CSV file"},
 			{ChoiceResetData, "6. Reset Saved Data", "Clear all recorded session history and achievements"},
-			{ChoiceQuit, "7. Quit", "Exit back to terminal"},
+			{ChoiceSettings, "7. Settings", "Customize theme, audio bell, 60fps refresh & view keybindings"},
+			{ChoiceQuit, "8. Quit", "Exit back to terminal"},
 		},
 	}
 }
@@ -71,6 +76,20 @@ func (m *MainMenu) Show() Choice {
 		switch e := ev.(type) {
 		case *tcell.EventResize:
 			m.screen.Raw.Sync()
+		case *tcell.EventMouse:
+			if e.Buttons()&tcell.ButtonPrimary != 0 {
+				mx, my := e.Position()
+				// Check if click was inside menu container
+				if mx >= m.lastBoxX && mx < m.lastBoxX+m.lastBoxW {
+					for i := range m.items {
+						itemY := m.lastBoxY + 1 + i*1
+						if my == itemY {
+							m.selected = i
+							return m.items[i].Choice
+						}
+					}
+				}
+			}
 		case *tcell.EventKey:
 			switch e.Key() {
 			case tcell.KeyUp:
@@ -114,7 +133,9 @@ func (m *MainMenu) Show() Choice {
 				return ChoiceExport
 			case '6':
 				return ChoiceResetData
-			case '7', 'q', 'Q':
+			case '7':
+				return ChoiceSettings
+			case '8', 'q', 'Q':
 				return ChoiceQuit
 			}
 		}
@@ -126,14 +147,15 @@ func (m *MainMenu) render() {
 	w, h := m.screen.Size()
 
 	banner := []string{
-		`   ____  ___        _    ____   ____    _    ____  _____ `,
-		`  / ___|/ _ \      / \  |  _ \ / ___|  / \  |  _ \| ____|`,
-		` | |  _| | | |    / _ \ | |_) | |     / _ \ | | | |  _|  `,
-		` | |_| | |_| |   / ___ \|  _ <| |___ / ___ \| |_| | |___ `,
-		`  \____|\___/   /_/   \_\_| \_\\____/_/   \_\____/|_____|`,
+		`  ██████╗  ██████╗      █████╗ ██████╗  ██████╗ █████╗ ██████╗ ███████╗`,
+		` ██╔════╝ ██╔═══██╗    ██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝`,
+		` ██║  ███╗██║   ██║    ███████║██████╔╝██║     ███████║██║  ██║█████╗  `,
+		` ██║   ██║██║   ██║    ██╔══██║██╔══██╗██║     ██╔══██║██║  ██║██╔══╝  `,
+		` ╚██████╔╝╚██████╔╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚██████╗╚═╝  ╚═╝██████╔╝███████╗`,
 	}
 
-	startY := (h - 26) / 2
+	totalH := 24
+	startY := (h - totalH) / 2
 	if startY < 1 {
 		startY = 1
 	}
@@ -145,28 +167,33 @@ func (m *MainMenu) render() {
 
 	m.screen.CenterText(startY+6, "Terminal Arcade Suite  •  Offline Edition", tcell.ColorWhite, tcell.ColorBlack)
 
-	// Streak indicator
+	// Always visible streak badge (habit reminder)
+	streak := 0
 	if m.store != nil && len(m.store.Records) > 0 {
-		streaks := history.CalculateStreaks(m.store.Records, time.Now())
-		if streaks.CurrentStreak > 0 {
-			streakText := fmt.Sprintf("🔥 %d-Day Streak!  (Personal Best: %d days)", streaks.CurrentStreak, streaks.LongestStreak)
-			m.screen.CenterText(startY+7, streakText, tcell.ColorYellow, tcell.ColorBlack)
-		} else if streaks.LongestStreak > 0 {
-			streakText := fmt.Sprintf("[Streak: 0 days | Best: %d days]", streaks.LongestStreak)
-			m.screen.CenterText(startY+7, streakText, tcell.ColorGray, tcell.ColorBlack)
-		}
+		st := history.CalculateStreaks(m.store.Records, time.Now())
+		streak = st.CurrentStreak
 	}
+	streakBadge := fmt.Sprintf("[🔥 STREAK: %d days]", streak)
+	m.screen.CenterText(startY+7, streakBadge, tcell.ColorYellow, tcell.ColorBlack)
 
-	// 2. Menu Items Container
-	boxW := 66
-	boxH := len(m.items)*2 + 3
+	// 2. Centered Menu Container Box (~60 chars wide × 12 rows tall)
+	boxW := 60
+	boxH := len(m.items) + 3
 	boxX := (w - boxW) / 2
 	boxY := startY + 9
+	if boxX < 0 {
+		boxX = 0
+	}
 
-	m.screen.BoxWithTitle(boxX, boxY, boxW, boxH, "SELECT OPTION", tcell.ColorBlueViolet, tcell.ColorBlack, tcell.ColorWhite)
+	m.lastBoxX = boxX
+	m.lastBoxY = boxY
+	m.lastBoxW = boxW
+	m.lastBoxH = boxH
+
+	m.screen.BoxWithTitle(boxX, boxY, boxW, boxH, "MAIN MENU", tcell.ColorBlueViolet, tcell.ColorBlack, tcell.ColorWhite)
 
 	for i, item := range m.items {
-		rowY := boxY + 1 + i*2
+		rowY := boxY + 1 + i
 		prefix := "  "
 		fg := tcell.ColorWhite
 		bg := tcell.ColorBlack
@@ -179,12 +206,11 @@ func (m *MainMenu) render() {
 		}
 
 		m.screen.DrawText(boxX+3, rowY, prefix+item.Label, fg, bg)
-		if i == m.selected {
-			descY := boxY + boxH + 1
-			m.screen.CenterText(descY, item.Desc, tcell.ColorAqua, tcell.ColorBlack)
-		}
 	}
 
-	// 3. Footer instructions
-	m.screen.CenterText(h-2, "Navigation: ↑/↓, W/S, 1-7  |  Select: Enter/Space  |  Quit: Q/Esc", tcell.ColorGray, tcell.ColorBlack)
+	// Active description below menu
+	m.screen.CenterText(boxY+boxH+1, m.items[m.selected].Desc, tcell.ColorAqua, tcell.ColorBlack)
+
+	// 3. Instruction footer
+	m.screen.CenterText(h-2, "↑/↓ Navigate | Enter Select | Q Quit", tcell.ColorGray, tcell.ColorBlack)
 }
